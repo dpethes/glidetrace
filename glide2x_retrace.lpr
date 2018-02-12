@@ -1,0 +1,354 @@
+{ replay glide2x trace
+}
+program glide2x_retrace;
+
+{$mode objfpc}{$H+}
+
+uses
+  classes, SysUtils, math, IniFiles,
+  display,
+  sdl,
+  glide2x,
+  gli_common, funcreplay, tracefile;
+
+var
+  disp: TDisplay;
+  glide_dll_path: string;
+
+{ These glide initialization calls can be skipped if in trace, because they don't change the glide state.
+}
+procedure PrepareGlide;
+var
+  version: array[0..80] of char;
+  hw_config: TGrHwConfiguration;
+  board: string;
+begin
+  //must always match glide's GrVertex size
+  Assert(sizeof(TGrVertex) = 60, 'TGrVertex size doesn''t match glide');
+
+  if not glide2x.grSstQueryBoards(@hw_config) then
+  begin
+      writeln('no 3dfx board found!');
+      exit;
+  end;
+  assert(hw_config.num_sst > 0);
+
+  glide2x.grGlideInit;
+  glide2x.grGlideGetVersion(@version);
+  glide2x.grSstQueryHardware(@hw_config);
+  board := 'unknown';
+  case hw_config.SSTs[0].type_ of
+      GR_SSTTYPE_VOODOO: board := 'Voodoo';
+      GR_SSTTYPE_SST96: board := 'Rush';
+      GR_SSTTYPE_AT3D: board := 'AT3D';
+      GR_SSTTYPE_Voodoo2: board := 'Voodoo 2';
+  end;
+  writeln('library version: ' + version);
+  writeln('boards found: ', hw_config.num_sst);
+  writeln('board 0: ', board);
+
+  glide2x.grSstSelect(0);
+end;
+
+{ Games (or their runtime) often mask more fpu exceptions than we do by default. If the game actually
+  causes fpu exceptions, this manifests as a crash in grDraw* calls (unreal tournament, tomb raider).
+  So mask all exceptions.
+}
+procedure MaskFPUExceptions;
+var
+  FPUException: TFPUException;
+  FPUExceptionMask: TFPUExceptionMask;
+begin
+  FPUExceptionMask := GetExceptionMask;
+  for FPUException := Low(TFPUException) to High(TFPUException) do begin
+      FPUExceptionMask += [FPUException];
+  end;
+  SetExceptionMask(FPUExceptionMask);
+end;
+
+{ Handle glide calls. Functions that just get some value from glide and don't change its state
+  are skipped. Functions with parameters and/or additional logic are handled in their
+  corresponding *_do() functions
+}
+procedure InterpretFunc(glFunc: TraceFunc);
+begin
+  //writeln('func: ', TraceFuncNames[glFunc]);
+  case glFunc of
+      { System
+      }
+      grGlideInit: ;        //skip, already initialized
+      grGlideShutdown: ;    //skip, we do that ourselves
+      grGlideGetVersion: ;  //skip or display result
+
+      //todo these two should be paired: get should store state until set is called; unless pairing is broken
+      grGlideGetState: ;
+      //grGlideSetState: grGlideSetState_do();
+
+      grSstIsBusy: ;        //skip
+      grSstIdle: glide2x.grSstIdle();  //this could probably be skipped as well
+      grSstStatus: ;        //skip
+      grSstVRetraceOn: ;    //skip
+      grSstVideoLine: ;     //skip
+
+      grSstQueryBoards: ;   //skip or display result
+      grSstQueryHardware: ; //skip or display result
+      grSstControl: ;       //skip completely?
+      grSstSelect: ;        //already selected 0 on init. Don't assume multiple adapters will be used
+      grSstOrigin: grSstOrigin_do();
+      grSstScreenHeight: ;  //skip
+      grSstScreenWidth: ;   //skip
+
+      grErrorSetCallback: ; //wrappers most likely never return anything; might be useful on real HW though
+
+      { Windows
+        If trace changes resolution and SDL window stays the same, dgVoodoo and nGlide can
+        resize the window; openglide can't
+      }
+      grSstWinOpen: grSstWinOpen_do(disp);
+      grSstWinClose: grSstWinClose_do(disp);
+
+      { Buffers
+      }
+      grBufferClear: grBufferClear_do();
+      grBufferNumPending: ; //skip
+      grBufferSwap: ;       //buffer swaps are handled in the interpreter loop
+
+      { LFB
+        - writes go through a pointer, so exact modifications aren't traceable through API
+        - reads can be skipped
+      }
+      grLfbLock: ; //glide2x.grLfbLock;
+      grLfbUnlock: ; //glide2x.grLfbUnlock;
+      grLfbReadRegion: ;  //skip
+      grLfbWriteRegion: ; //do write region
+
+      { Drawing
+      }
+      grAADrawLine: grAADrawLine_do();
+      grDrawPoint: grDrawPoint_do();
+      grDrawLine: grDrawLine_do();
+      grDrawTriangle: grDrawTriangle_do();
+      guDrawTriangleWithClip: guDrawTriangleWithClip_do();
+      //one batch, two batch
+      grDrawPlanarPolygon: grDrawPlanarPolygon_do();
+      grDrawPlanarPolygonVertexList: grDrawPlanarPolygonVertexList_do();
+      grDrawPolygon: grDrawPolygon_do();
+      grDrawPolygonVertexList: grDrawPolygonVertexList_do();
+
+      { Textures
+      }
+      grTexCalcMemRequired: ;  //skip
+      grTexMaxAddress: ;       //skip
+      grTexMinAddress: ;       //skip
+      grTexClampMode: grTexClampMode_do;
+      grTexCombine: grTexCombine_do;
+      guTexCombineFunction,
+      grTexCombineFunction: guTexCombineFunction_do;  //they're the same
+      grTexDownloadMipMap: grTexDownloadMipMap_do;
+      grTexDownloadMipMapLevel: grTexDownloadMipMapLevel_do;
+      grTexDownloadMipMapLevelPartial: grTexDownloadMipMapLevelPartial_do;
+      grTexDownloadTable: grTexDownloadTable_do;
+      grTexDownloadTablePartial: grTexDownloadTablePartial_do;
+      grTexFilterMode: grTexFilterMode_do;
+      grTexLodBiasValue: grTexLodBiasValue_do;
+      grTexMipMapMode: grTexMipMapMode_do;
+      grTexSource: grTexSource_do;
+      grTexTextureMemRequired: ;  //skip
+
+      //alloc TGrMipMapId -s and compare them to stored id-s. if they'll differ from run to run, we need remapping
+      guTexAllocateMemory: guTexAllocateMemory_do;
+      guTexChangeAttributes: guTexChangeAttributes_do;
+      guTexDownloadMipMap: guTexDownloadMipMap_do;
+      guTexGetCurrentMipMap: ;  //skip
+      guTexGetMipMapInfo: ;   //skip
+      guTexMemQueryAvail: ;   //skip
+      guTexMemReset: ;        //todo this should not be skipped?
+      guTexSource: guTexSource_do;
+
+      { configuration and special effect maintenance functions
+      }
+      grChromakeyMode: grChromakeyMode_do();
+      grChromakeyValue: grChromakeyValue_do();
+      grClipWindow: grClipWindow_do();
+
+      grAlphaBlendFunction: grAlphaBlendFunction_do();
+      grAlphaCombine: grAlphaCombine_do();
+      grAlphaTestFunction: grAlphaTestFunction_do();
+      grAlphaTestReferenceValue: grAlphaTestReferenceValue_do();
+
+      grColorCombine: grColorCombine_do();
+      grColorMask: grColorMask_do();
+      grConstantColorValue: grConstantColorValue_do();
+      grCullMode: grCullMode_do();
+      grDepthBiasLevel: grDepthBiasLevel_do();
+      grDepthBufferFunction: grDepthBufferFunction_do();
+      grDepthBufferMode: grDepthBufferMode_do();
+      grDepthMask: grDepthMask_do();
+      grDisableAllEffects: glide2x.grDisableAllEffects();
+      grDitherMode: grDitherMode_do();
+
+      grFogColorValue: grFogColorValue_do();
+      grFogMode: grFogMode_do();
+      grFogTable: grFogTable_do();
+
+      grGammaCorrectionValue: grGammaCorrectionValue_do();
+      grHints: grHints_do();
+      grSplash: ;  //skip
+      grGlideShamelessPlug: ; //skip
+
+      { utility functions
+      }
+      gu3dfGetInfo: ;  //skip
+      gu3dfLoad: ;     //skip
+      guAlphaSource: guAlphaSource_do();
+      guColorCombineFunction: guColorCombineFunction_do();
+      guFogGenerateExp: ;      //skip
+      guFogGenerateExp2: ;     //skip
+      guFogGenerateLinear: ;   //skip
+      guFogTableIndexToW: ;    //skip
+
+      { perf info, only works on real HW }
+      grSstPerfStats, grSstResetPerfStats, grTriStats, grResetTriStats: ;  //skip
+
+      { todo - easy to add, but they are missing test cases
+      grAADrawPoint
+      grAADrawPolygon
+      grAADrawPolygonVertexList
+      grAADrawTriangle
+      guAADrawTriangleWithClip
+
+      grAlphaControlsITRGBLighting
+      grConstantColorValue4
+
+      grLfbConstantAlpha
+      grLfbConstantDepth
+
+      grRenderBuffer
+
+      grTexDetailControl
+      grTexMultibase
+      grTexMultibaseAddress
+      grTexNCCTable
+      guTexDownloadMipMapLevel
+      }
+
+      { obsolete / missing documentation / unimplemented in wrappers
+      grLfbWriteColorFormat
+      grLfbWriteColorSwizzle
+      grCheckForRoom
+      guDrawPolygonVertexListWithClip
+      guEncodeRLE16
+      guEndianSwapBytes
+      guEndianSwapWords
+      guTexCreateColorMipMap
+      ConvertAndDownloadRle
+      }
+      else
+      begin
+          writeln('cannot interpret command: ', TraceFuncNames[glFunc]);
+      end;
+  end;
+end;
+
+{ Be careful to not load the tracing glide2x
+  With dgVoodoo, you have to use the debug version, as the normal version crashes with debugger attached.
+}
+procedure LoadConfig;
+var
+  cfg: TIniFile;
+begin
+  cfg := TIniFile.Create('glide2x_retrace.ini', false);
+  glide_dll_path := cfg.ReadString('config', 'Wrapper', '..\glide2x.dll');
+  g_rep.force_single_window := cfg.ReadBool('config', 'ForceSingleWindow', false);
+  g_rep.disable_gamma       := cfg.ReadBool('config', 'DisableGamma', false);
+  g_rep.disable_tex         := cfg.ReadBool('config', 'DisableTextures', false);
+  g_rep.wireframe           := cfg.ReadBool('config', 'EnableWireframe', false);
+  cfg.Free;
+  //glide_dll_path := '..\glide2x.psvoodoo.dll';
+  //glide_dll_path := '..\gld.dll';
+  //glide_dll_path := '..\glide2x.dg.dll';
+  //g_rep.force_single_window := true;  //block multiple calls to grSstWinOpen, as it can be annoying at times
+  //g_rep.disable_gamma := true;  //disable grGammaCorrectionValue
+  //g_rep.disable_tex := true;    //disable texture alloc/download/source/combine
+  //g_rep.wireframe := true;      //replace triangle calls with lines
+end;
+
+const
+  TRACE_FILE_NAME = 'trace.bin';
+
+var
+  ev: TSDL_Event;
+  key: TSDLKey;
+  done: boolean = false;
+  glFunc: TraceFunc;
+  frames: integer;
+
+begin
+  if not FileExists(TRACE_FILE_NAME) then begin
+      writeln('could not find input trace!');
+      halt;
+  end;
+  if not OpenTraceFileRead(TRACE_FILE_NAME) then begin
+      writeln('invalid trace!');
+      halt;
+  end;
+  LoadConfig;
+
+  //init wrapper
+  InitGlideFromLibrary(glide_dll_path);
+  PrepareGlide;
+
+  //reserve "plenty" of space - should be enough for one glide call param list
+  g_rep.scratchpad := getmem(16 * (1 shl 20));
+  g_rep.mmid_translation_table := getmem(MMID_TRANSLATION_TABLE_SIZE);
+
+  //open SDL window
+  disp := TDisplay.Create;
+
+  //see no evil
+  MaskFPUExceptions;
+
+  done := false;
+  frames := 0;
+  while not done do begin
+      glFunc := LoadFunc;
+      InterpretFunc(glFunc);
+      done := not HaveMore;
+
+      //run event handling
+      if glFunc = grBufferSwap then
+      begin
+          glide2x.grBufferSwap(1);
+          //glide2x.grBufferClear(0,0,0);  //unreal tournament doesn't clear the buffers - wireframe mode looks weird
+          frames += 1;
+          //sleep(10);
+          //write(frames, #13);
+
+          SDL_PollEvent(@ev);
+          case ev.type_ of
+              SDL_QUITEV:
+                  done := True;
+              SDL_KEYDOWN:
+              begin
+                  key := ev.key.keysym.sym;
+                  case key of
+                      SDLK_ESCAPE, SDLK_q:
+                          done := True;
+                  end;
+              end;
+          end;
+      end;
+  end;
+
+  //close glide
+  Sleep(250);
+  if g_rep.force_single_window then begin
+      glide2x.grSstWinClose();
+      disp.FreeDisplay;
+  end;
+  glide2x.grGlideShutdown;
+
+  freemem(g_rep.mmid_translation_table);
+  freemem(g_rep.scratchpad);
+  CloseTraceFileRead;
+end.
