@@ -169,7 +169,7 @@ procedure guDrawPolygonVertexListWithClip(nverts: integer; const vlist: PGrVerte
 function guEndianSwapBytes(Value: TFxU32): TFxU32; stdcall;
 function guEndianSwapWords(Value: TFxU32): TFxU32; stdcall;
 function guEncodeRLE16(dst, src: pointer; Width, Height: TFxU32): integer; stdcall;
-function guTexCreateColorMipMap(): TFxU16; stdcall;
+function guTexCreateColorMipMap(): PFxU16; stdcall;
 
 
 procedure SetGlideLib(path: string);
@@ -1269,7 +1269,7 @@ begin
   Result := glide2x.guEncodeRLE16(dst, src, Width, Height);
 end;
 
-function guTexCreateColorMipMap(): TFxU16; stdcall;
+function guTexCreateColorMipMap(): PFxU16; stdcall;
 begin
   Trace(TraceFunc.guTexCreateColorMipMap);
   Result := glide2x.guTexCreateColorMipMap();
