@@ -56,6 +56,7 @@ procedure grTexSource_do;
 procedure guTexAllocateMemory_do;
 procedure guTexChangeAttributes_do;
 procedure guTexDownloadMipMap_do;
+procedure guTexMemReset_do;
 procedure guTexSource_do;
 
 procedure grChromakeyMode_do;
@@ -653,6 +654,11 @@ begin
 
   mmid := MmidTranslate(mmid);
   glide2x.guTexDownloadMipMap(mmid, src, nccTable);
+end;
+
+procedure guTexMemReset_do;
+begin
+  glide2x.guTexMemReset();
 end;
 
 procedure guTexSource_do;

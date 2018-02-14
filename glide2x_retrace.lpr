@@ -162,7 +162,7 @@ begin
       guTexGetCurrentMipMap: ;  //skip
       guTexGetMipMapInfo: ;   //skip
       guTexMemQueryAvail: ;   //skip
-      guTexMemReset: ;        //todo this should not be skipped?
+      guTexMemReset: guTexMemReset_do;
       guTexSource: guTexSource_do;
 
       { configuration and special effect maintenance functions
