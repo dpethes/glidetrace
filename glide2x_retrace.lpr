@@ -6,10 +6,9 @@ program glide2x_retrace;
 
 uses
   classes, SysUtils, math, IniFiles,
-  display,
-  sdl,
-  glide2x,
-  gli_common, funcreplay, tracefile;
+  sdl, display, glide2x,
+  fpimgui, fpimgui_impl_glide2x,
+  gli_common, funcreplay, tracefile, wrapper_util;
 
 var
   disp: TDisplay;
@@ -104,7 +103,12 @@ begin
         If trace changes resolution and SDL window stays the same, dgVoodoo and nGlide can
         resize the window; openglide can't
       }
-      grSstWinOpen: grSstWinOpen_do(disp);
+      grSstWinOpen: begin
+          grSstWinOpen_do(disp);
+          ImGui_ImplSdlGlide2x_NewFrame();
+          ImGui.PushStyleVar(ord(ImGuiStyleVar_WindowRounding), 0);
+          Imgui.GetIO()^.MouseDrawCursor := true;  //useful in fullscreen mode
+      end;
       grSstWinClose: grSstWinClose_do(disp);
 
       { Buffers
@@ -280,8 +284,10 @@ var
   ev: TSDL_Event;
   key: TSDLKey;
   done: boolean = false;
-  glFunc: TraceFunc;
+  glFunc, i: TraceFunc;
   frames: integer;
+  glFuncCallStats: array[TraceFunc] of integer;
+  sleepInterval: integer = 16;
 
 begin
   if not FileExists(TRACE_FILE_NAME) then begin
@@ -304,6 +310,7 @@ begin
 
   //open SDL window
   disp := TDisplay.Create;
+  ImGui_ImplSdlGlide2x_Init();
 
   //see no evil
   MaskFPUExceptions;
@@ -315,30 +322,49 @@ begin
       InterpretFunc(glFunc);
       done := not HaveMore;
 
+      glFuncCallStats[glFunc] += 1;
+
       //run event handling
       if glFunc = grBufferSwap then
       begin
-          glide2x.grBufferSwap(1);
-          //glide2x.grBufferClear(0,0,0);  //unreal tournament doesn't clear the buffers - wireframe mode looks weird
           frames += 1;
-          //sleep(10);
           //write(frames, #13);
-
-          SDL_PollEvent(@ev);
-          case ev.type_ of
-              SDL_QUITEV:
-                  done := True;
-              SDL_KEYDOWN:
-              begin
-                  key := ev.key.keysym.sym;
-                  case key of
-                      SDLK_ESCAPE, SDLK_q:
-                          done := True;
-                  end;
+          Imgui.Text('frame: %d',[frames]);
+          ImGui.Checkbox('wireframe', @g_rep.wireframe);
+          ImGui.SliderInt('sleep', @sleepInterval, 0, 100);
+          for i := Low(TraceFunc) to High(TraceFunc) do begin
+              if glFuncCallStats[i] > 0 then begin
+                  Imgui.Text(TraceFuncNames[i] + ': %d', [glFuncCallStats[i]]);
+                  glFuncCallStats[i] := 0;
               end;
           end;
+          Imgui.Render();
+
+          glide2x.grBufferSwap(1);
+          //glide2x.grBufferClear(0,0,0);  //unreal tournament doesn't clear the buffers - wireframe mode looks weird
+          sleep(sleepInterval);
+
+          if SDL_PollEvent(@ev) <> 0 then begin
+              case ev.type_ of
+                  SDL_QUITEV:
+                      done := True;
+                  SDL_KEYDOWN:
+                  begin
+                      key := ev.key.keysym.sym;
+                      case key of
+                          SDLK_ESCAPE, SDLK_q:
+                              done := True;
+                          SDLK_w:
+                              g_rep.wireframe := not g_rep.wireframe;
+                      end;
+                  end;
+              end;
+              ImGui_ImplSdlGlide2x_ProcessEvent(@ev);
+          end;
+          ImGui_ImplSdlGlide2x_NewFrame();
       end;
   end;
+  ImGui_ImplSdlGlide2x_Shutdown();
 
   //close glide
   Sleep(250);
