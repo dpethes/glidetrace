@@ -91,7 +91,7 @@ begin
   g_FontTexture.info.smallLod := GR_LOD_256;
   g_FontTexture.info.largeLod := GR_LOD_256;
   g_FontTexture.info.aspectRatio := GR_ASPECT_2x1;
-  g_FontTexture.info.format := GR_TEXFMT_INTENSITY_8;
+  g_FontTexture.info.format := GR_TEXFMT_ALPHA_8;
   g_FontTexture.info.data := pixels;
   g_FontTexture.adress := grTexMaxAddress(GR_TMU0) - 256*128;
   grTexDownloadMipMap(GR_TMU0, g_FontTexture.adress, GR_MIPMAPLEVELMASK_BOTH, @g_FontTexture.info);
@@ -268,20 +268,17 @@ begin
   ResetGlideState();
   grSstOrigin(GR_ORIGIN_UPPER_LEFT);
 
-  //todo proper alpha combine from texture
   grColorCombine(GR_COMBINE_FUNCTION_SCALE_OTHER, GR_COMBINE_FACTOR_LOCAL,
     GR_COMBINE_LOCAL_ITERATED, GR_COMBINE_OTHER_TEXTURE, FXFALSE);
   grTexCombine(GR_TMU0, GR_COMBINE_FUNCTION_LOCAL, GR_COMBINE_FACTOR_NONE,
     GR_COMBINE_FUNCTION_LOCAL, GR_COMBINE_FACTOR_NONE,
-    FXFALSE, FXFALSE );
+    FXFALSE, FXFALSE);
+  guAlphaSource(GR_ALPHASOURCE_TEXTURE_ALPHA_TIMES_ITERATED_ALPHA);
 
-  grAlphaCombine(GR_COMBINE_FUNCTION_SCALE_OTHER, GR_COMBINE_FACTOR_ONE, GR_COMBINE_FACTOR_NONE,
-    GR_COMBINE_LOCAL_ITERATED, FXFALSE);
-  grAlphaBlendFunction(GR_BLEND_SRC_ALPHA, GR_BLEND_ONE_MINUS_SRC_ALPHA, GR_BLEND_ZERO,
-    GR_BLEND_ZERO);
+  grAlphaBlendFunction(GR_BLEND_SRC_ALPHA, GR_BLEND_ONE_MINUS_SRC_ALPHA,
+    GR_BLEND_ZERO, GR_BLEND_ZERO);
 
   grTexSource(GR_TMU0, g_FontTexture.adress, GR_MIPMAPLEVELMASK_BOTH, @g_FontTexture.info);
-  grTexFilterMode(GR_TMU0, GR_TEXTUREFILTER_POINT_SAMPLED, GR_TEXTUREFILTER_POINT_SAMPLED);
 
   scr_width := grSstScreenWidth();
   scr_height := grSstScreenHeight();
