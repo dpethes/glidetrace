@@ -5,11 +5,14 @@ unit tracefile;
 interface
 
 uses
-  SysUtils, classes, math, gli_common;
+  SysUtils, classes, math, gli_common, glist;
 
 const
   MEM_BUFFER_SIZE = 1 << 20;
   CMD_GUARD: longword = $deadbeef;
+
+type
+  TFrameOffsetList = specialize TList<int64>;
 
 var
   g_tr: record
@@ -17,6 +20,9 @@ var
       file_bin: file;
       buffer: TMemoryStream;
       load_buffer: pbyte;
+      frame_offsets: TFrameOffsetList;
+      file_pos: int64;
+      next_cmd_is_frame_marker: boolean;
 
       can_write: boolean;
       trace_text: boolean;
@@ -30,6 +36,7 @@ procedure OpenTraceFileWrite(s: string);
 procedure CloseTraceFileWrite;
 function OpenTraceFileRead(s: string): boolean;
 procedure CloseTraceFileRead;
+procedure SeekToFrame(frame: integer);  //backward only seek
 procedure TraceFPUExceptionMask();
 procedure Trace(fn: TraceFunc);
 procedure Trace(s: string);
@@ -90,7 +97,8 @@ procedure RefillReadBuffer;
 var
   size_avail: int64;
 begin
-  size_avail := FileSize(g_tr.file_bin) - FilePos(g_tr.file_bin);
+  g_tr.file_pos := FilePos(g_tr.file_bin);
+  size_avail := FileSize(g_tr.file_bin) - g_tr.file_pos;
   if size_avail > MEM_BUFFER_SIZE then
       size_avail := MEM_BUFFER_SIZE;
 
@@ -108,6 +116,8 @@ begin
   Assign(g_tr.file_bin, s);
   Reset(g_tr.file_bin, 1);
 
+  g_tr.frame_offsets := TFrameOffsetList.Create;
+  g_tr.frame_offsets.Reserve(1 << 10);
   g_tr.buffer := TMemoryStream.Create;
   g_tr.load_buffer := Getmem(MEM_BUFFER_SIZE);
   RefillReadBuffer;
@@ -130,6 +140,19 @@ begin
   g_tr.buffer.Free;
   freemem(g_tr.load_buffer);
   Close(g_tr.file_bin);
+end;
+
+procedure SeekToFrame(frame: integer);
+var
+  fpos: int64;
+begin
+  if g_tr.frame_offsets.Count <= frame then
+      frame := g_tr.frame_offsets.Count - 1;
+  if frame < 0 then
+      frame := 0;
+  fpos := g_tr.frame_offsets[frame];
+  Seek(g_tr.file_bin, fpos);
+  RefillReadBuffer;
 end;
 
 procedure WriteTxt(s: string);
@@ -221,11 +244,20 @@ end;
 function LoadFunc: TraceFunc;
 var
   cmd: byte;
+  fpos: int64;
 begin
+  if g_tr.next_cmd_is_frame_marker then begin
+      //some extra checks, because seeking backwards can mess up the frame indexing order
+      fpos := g_tr.file_pos + g_tr.buffer.Position;
+      if (g_tr.frame_offsets.Count = 0) or (g_tr.frame_offsets[g_tr.frame_offsets.Count-1] < fpos) then
+          g_tr.frame_offsets.Add(fpos);
+  end;
+
   Load(cmd, 1);
   LoadGuard;
   if cmd <= ord(High(TraceFunc)) then begin
-      result := TraceFunc(cmd)
+      result := TraceFunc(cmd);
+      g_tr.next_cmd_is_frame_marker := result in [grSstWinOpen, grBufferSwap];
   end else begin
       writeln('bad command');  //ouch, cannot continue
       halt;

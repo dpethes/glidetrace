@@ -57,7 +57,7 @@
         <FormatVersion Value="1"/>
       </local>
     </RunParams>
-    <Units Count="8">
+    <Units Count="9">
       <Unit0>
         <Filename Value="glide2x_retrace.lpr"/>
         <IsPartOfProject Value="True"/>
@@ -91,6 +91,10 @@
         <Filename Value="imgui\fpimgui_impl_glide2x.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit7>
+      <Unit8>
+        <Filename Value="glist.pas"/>
+        <IsPartOfProject Value="True"/>
+      </Unit8>
     </Units>
   </ProjectOptions>
   <CompilerOptions>

@@ -284,6 +284,9 @@ var
   ev: TSDL_Event;
   key: TSDLKey;
   done: boolean = false;
+  play: boolean = true;
+  step_forward,
+  step_backward: boolean;
   glFunc, i: TraceFunc;
   frames: integer;
   glFuncCallStats: array[TraceFunc] of integer;
@@ -317,6 +320,9 @@ begin
 
   done := false;
   frames := 0;
+  for i := Low(TraceFunc) to High(TraceFunc) do
+      glFuncCallStats[i] := 0;
+
   while not done do begin
       glFunc := LoadFunc;
       InterpretFunc(glFunc);
@@ -327,9 +333,13 @@ begin
       //run event handling
       if glFunc = grBufferSwap then
       begin
-          frames += 1;
           //write(frames, #13);
           Imgui.Text('frame: %d',[frames]);
+          ImGui.Checkbox('play', @play);
+          ImGui.SameLine();
+          step_backward := ImGui.Button('<-');
+          ImGui.SameLine();
+          step_forward := ImGui.Button('->');
           ImGui.Checkbox('wireframe', @g_rep.wireframe);
           ImGui.SliderInt('sleep', @sleepInterval, 0, 100);
           for i := Low(TraceFunc) to High(TraceFunc) do begin
@@ -352,15 +362,28 @@ begin
                   begin
                       key := ev.key.keysym.sym;
                       case key of
-                          SDLK_ESCAPE, SDLK_q:
-                              done := True;
-                          SDLK_w:
-                              g_rep.wireframe := not g_rep.wireframe;
+                          SDLK_ESCAPE, SDLK_q: done := True;
+                          SDLK_w: g_rep.wireframe := not g_rep.wireframe;
+                          SDLk_p, SDLK_SPACE: play := not play;
+                          SDLK_RIGHT: step_forward := true;
+                          SDLK_LEFT: step_backward := true;
                       end;
                   end;
               end;
               ImGui_ImplSdlGlide2x_ProcessEvent(@ev);
           end;
+
+          if not play then begin
+              if step_backward then
+                  frames -= 1;
+              if not step_forward then
+                  SeekToFrame(frames)
+              else
+                  frames += 1;
+          end;
+          if play then
+              frames += 1;
+
           ImGui_ImplSdlGlide2x_NewFrame();
       end;
   end;
