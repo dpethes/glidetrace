@@ -211,28 +211,14 @@ end;
 
 procedure ResetGlideState;
 begin
-  grTexMipMapMode(0, GR_MIPMAP_DISABLE, FXFALSE);
-  grTexFilterMode(0, GR_TEXTUREFILTER_BILINEAR, GR_TEXTUREFILTER_BILINEAR);
+  grTexMipMapMode(GR_TMU0, GR_MIPMAP_DISABLE, FXFALSE);
+  grTexFilterMode(GR_TMU0, GR_TEXTUREFILTER_BILINEAR, GR_TEXTUREFILTER_BILINEAR);  //not strictly necessary
   grChromakeyMode(GR_CHROMAKEY_DISABLE);
   grFogMode(GR_FOG_DISABLE);
   grCullMode(GR_CULL_DISABLE);
   grRenderBuffer(GR_BUFFER_BACKBUFFER);
   grAlphaTestFunction(GR_CMP_ALWAYS);
-  grDitherMode(GR_DITHER_4x4);
-  grColorCombine(GR_COMBINE_FUNCTION_SCALE_OTHER,
-      GR_COMBINE_FACTOR_ONE,
-      GR_COMBINE_LOCAL_ITERATED,
-      GR_COMBINE_OTHER_ITERATED,
-      FXFALSE);
-  grAlphaCombine(GR_COMBINE_FUNCTION_SCALE_OTHER,
-      GR_COMBINE_FACTOR_ONE,
-      GR_COMBINE_LOCAL_NONE,
-      GR_COMBINE_OTHER_CONSTANT,
-      FXFALSE);
-  grTexCombine(GR_TMU0, GR_COMBINE_FUNCTION_LOCAL, GR_COMBINE_FACTOR_NONE,
-      GR_COMBINE_FUNCTION_LOCAL, GR_COMBINE_FACTOR_NONE, FXFALSE, FXFALSE);
   grAlphaControlsITRGBLighting(FXFALSE);
-  grAlphaBlendFunction(GR_BLEND_ONE, GR_BLEND_ZERO, GR_BLEND_ONE, GR_BLEND_ZERO);
   grColorMask(FXTRUE, FXFALSE);
   grDepthMask(FXFALSE);
   grDepthBufferMode(GR_DEPTHBUFFER_DISABLE);
@@ -264,19 +250,17 @@ var
   state: TGrState;
 begin
   grGlideGetState(@state);
-
   ResetGlideState();
+
   grSstOrigin(GR_ORIGIN_UPPER_LEFT);
 
   grColorCombine(GR_COMBINE_FUNCTION_SCALE_OTHER, GR_COMBINE_FACTOR_LOCAL,
-    GR_COMBINE_LOCAL_ITERATED, GR_COMBINE_OTHER_TEXTURE, FXFALSE);
+                 GR_COMBINE_LOCAL_ITERATED, GR_COMBINE_OTHER_TEXTURE, FXFALSE);
   grTexCombine(GR_TMU0, GR_COMBINE_FUNCTION_LOCAL, GR_COMBINE_FACTOR_NONE,
-    GR_COMBINE_FUNCTION_LOCAL, GR_COMBINE_FACTOR_NONE,
-    FXFALSE, FXFALSE);
+               GR_COMBINE_FUNCTION_LOCAL, GR_COMBINE_FACTOR_NONE,
+               FXFALSE, FXFALSE);
   guAlphaSource(GR_ALPHASOURCE_TEXTURE_ALPHA_TIMES_ITERATED_ALPHA);
-
-  grAlphaBlendFunction(GR_BLEND_SRC_ALPHA, GR_BLEND_ONE_MINUS_SRC_ALPHA,
-    GR_BLEND_ZERO, GR_BLEND_ZERO);
+  grAlphaBlendFunction(GR_BLEND_SRC_ALPHA, GR_BLEND_ONE_MINUS_SRC_ALPHA, GR_BLEND_ZERO, GR_BLEND_ZERO);
 
   grTexSource(GR_TMU0, g_FontTexture.adress, GR_MIPMAPLEVELMASK_BOTH, @g_FontTexture.info);
 
@@ -313,16 +297,15 @@ begin
                       t := @triangle[k];
                       t^.x := imvtx.pos.x;
                       t^.y := imvtx.pos.y;
+                      t^.z := 0;
                       t^.r := (imvtx.col) and $ff;
                       t^.g := (imvtx.col >> 8) and $ff;
                       t^.b := (imvtx.col >> 16) and $ff;
                       t^.a := (imvtx.col >> 24) and $ff;
-                      t^.z := 0;
                       t^.ooz := 1;
                       t^.oow := 1;
                       t^.tmuvtx[0].sow := imvtx.uv.x * 256;  //our texture is 256*128
                       t^.tmuvtx[0].tow := imvtx.uv.y * 128;
-                      //t^.tmuvtx[0].oow := 1;
                   end;
                   guDrawTriangleWithClip(@triangle[0], @triangle[1], @triangle[2]);
               end;
