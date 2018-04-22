@@ -118,12 +118,32 @@ end;
 
 
 { ================================================================================================ }
-//parameter tracking&hooks
+//parameter tracking & hooks
 procedure TrackTMU(var tmu: TGrChipID);
 begin
   if g_rep.force_tmu0 and (tmu <> GR_TMU0) then
       tmu := GR_TMU0;
   g_rep.active_tmus[tmu] := true;
+end;
+
+procedure VertexHook(var v: TGrVertex); inline;
+begin
+
+end;
+
+procedure LoadVtx(out v: TGrVertex);
+begin
+  Load(v, sizeof(TGrVertex));
+  VertexHook(v);
+end;
+
+procedure LoadVtxList(p: PGrVertex; count: integer);
+var
+  i: Integer;
+begin
+  Load(p^, count * sizeof(TGrVertex));
+  for i := 0 to count - 1 do
+      VertexHook(p[i]);
 end;
 
 
@@ -215,15 +235,11 @@ end;
 { ================================================================================================ }
 { rendering functions }
 
-procedure VertexHook(var v: TGrVertex);
-begin
-end;
-
 procedure grDrawPoint_do;
 var
   a: TGrVertex;
 begin
-  Load(a, sizeof(TGrVertex));
+  LoadVtx(a);
   glide2x.grDrawPoint(@a);
 end;
 
@@ -231,8 +247,8 @@ procedure grDrawLine_do;
 var
   a, b: TGrVertex;
 begin
-  Load(a, sizeof(TGrVertex));
-  Load(b, sizeof(TGrVertex));
+  LoadVtx(a);
+  LoadVtx(b);
   glide2x.grDrawLine(@a, @b);
 end;
 
@@ -240,9 +256,9 @@ procedure grDrawTriangle_do;
 var
   a, b, c: TGrVertex;
 begin
-  Load(a, sizeof(TGrVertex));
-  Load(b, sizeof(TGrVertex));
-  Load(c, sizeof(TGrVertex));
+  LoadVtx(a);
+  LoadVtx(b);
+  LoadVtx(c);
 
   if g_rep.wireframe then begin
       grDrawLine(@a, @b);
@@ -258,9 +274,9 @@ procedure guDrawTriangleWithClip_do;
 var
   a, b, c: TGrVertex;
 begin
-  Load(a, sizeof(TGrVertex));
-  Load(b, sizeof(TGrVertex));
-  Load(c, sizeof(TGrVertex));
+  LoadVtx(a);
+  LoadVtx(b);
+  LoadVtx(c);
 
   if g_rep.wireframe then begin
       grDrawLine(@a, @b);
@@ -276,7 +292,7 @@ procedure grAADrawPoint_do;
 var
   a: TGrVertex;
 begin
-  Load(a, sizeof(TGrVertex));
+  LoadVtx(a);
   glide2x.grAADrawPoint(@a);
 end;
 
@@ -284,8 +300,8 @@ procedure grAADrawLine_do;
 var
   a, b: TGrVertex;
 begin
-  Load(a, sizeof(TGrVertex));
-  Load(b, sizeof(TGrVertex));
+  LoadVtx(a);
+  LoadVtx(b);
   glide2x.grAADrawLine(@a, @b);
 end;
 
@@ -294,9 +310,9 @@ var
   a, b, c: TGrVertex;
   ab_antialias, bc_antialias, ca_antialias: TFxBOOL;
 begin
-  Load(a, sizeof(TGrVertex));
-  Load(b, sizeof(TGrVertex));
-  Load(c, sizeof(TGrVertex));
+  LoadVtx(a);
+  LoadVtx(b);
+  LoadVtx(c);
   Load(ab_antialias, sizeof(TFxBool));
   Load(bc_antialias, sizeof(TFxBool));
   Load(ca_antialias, sizeof(TFxBool));
@@ -342,7 +358,7 @@ var
 begin
   vlist := PGrVertex(g_rep.scratchpad);
   Load(nverts, 4);
-  Load(vlist^, nverts * sizeof(TGrVertex));
+  LoadVtxList(vlist, nverts);
 
   if g_rep.wireframe then begin
       for i := 0 to nverts - 2 do
@@ -364,7 +380,7 @@ begin
   ilist := PInteger(g_rep.scratchpad);
   vlist := PGrVertex(g_rep.scratchpad + nverts * 4);
   Load(ilist^, nverts * 4);
-  Load(vlist^, nverts * sizeof(TGrVertex));
+  LoadVtxList(vlist, nverts);
 
   //wrapper reorders the vlist, so index list can be skipped
   if g_rep.wireframe then begin
@@ -384,7 +400,7 @@ var
 begin
   vlist := PGrVertex(g_rep.scratchpad);
   Load(nverts, 4);
-  Load(vlist^, nverts * sizeof(TGrVertex));
+  LoadVtxList(vlist, nverts);
 
   if g_rep.wireframe then begin
       for i := 0 to nverts - 2 do
