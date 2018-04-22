@@ -22,6 +22,7 @@ var
       disable_tex: boolean;
       disable_gamma: boolean;
       wireframe: boolean;
+      force_tmu0: boolean;  //make all grTex/guTex calls use TMU0, can be useful for openglide
   end;
 
 procedure grSstWinOpen_do(disp: TDisplay);
@@ -110,6 +111,16 @@ begin
   Result := g_rep.mmid_translation_table[i];
   //writeln(result, ' <- ', old_mmid);
 end;
+
+
+{ ================================================================================================ }
+//parameter tracking&hooks
+procedure TrackTMU(var tmu: TGrChipID);
+begin
+  if g_rep.force_tmu0 and (tmu <> GR_TMU0) then
+      tmu := GR_TMU0;
+end;
+
 
 { ================================================================================================ }
 { SST routines }
@@ -390,6 +401,7 @@ begin
   Load(tmu, sizeof(TGrChipID));
   Load(s_clampmode, sizeof(TGrTextureClampMode));
   Load(t_clampmode, sizeof(TGrTextureClampMode));
+  TrackTMU(tmu);
   glide2x.grTexClampMode(tmu, s_clampmode, t_clampmode);
 end;
 
@@ -413,6 +425,7 @@ begin
 
   if g_rep.disable_tex then
       exit;
+  TrackTMU(tmu);
   glide2x.grTexCombine(tmu, rgb_function, rgb_factor, alpha_function, alpha_factor, rgb_invert, alpha_invert);
 end;
 
@@ -425,6 +438,7 @@ begin
   Load(fnc, sizeof(TGrTextureCombineFnc));
   if g_rep.disable_tex then
       exit;
+  TrackTMU(tmu);
   glide2x.guTexCombineFunction(tmu, fnc);
 end;
 
@@ -435,6 +449,7 @@ var
 begin
   Load(tmu, sizeof(TGrChipID));
   Load(bias, sizeof(single));
+  TrackTMU(tmu);
   glide2x.grTexLodBiasValue(tmu, bias);
 end;
 
@@ -456,6 +471,7 @@ begin
 
   if g_rep.disable_tex then
       exit;
+  TrackTMU(tmu);
   glide2x.grTexDownloadMipMap(tmu, startAddress, evenOdd, @info);
 end;
 
@@ -485,6 +501,7 @@ begin
 
   if g_rep.disable_tex then
       exit;
+  TrackTMU(tmu);
   glide2x.grTexDownloadMipMapLevel(tmu, startAddress, thisLod, largeLod, aspectRatio, format, evenOdd, Data);
 end;
 
@@ -519,6 +536,7 @@ begin
 
   if g_rep.disable_tex then
       exit;
+  TrackTMU(tmu);
   glide2x.grTexDownloadMipMapLevelPartial(tmu, startAddress, thisLod, largeLod, aspectRatio, format, evenOdd,
       Data, _start, _end);
 end;
@@ -538,6 +556,7 @@ begin
   Data := g_rep.scratchpad;
   Load(Data^, size);
 
+  TrackTMU(tmu);
   glide2x.grTexDownloadTable(tmu, _type, Data);
 end;
 
@@ -559,6 +578,7 @@ begin
   size := (_end + 1 - _start) * sizeof(TFxU32);
   Load(Data^, size);
 
+  TrackTMU(tmu);
   glide2x.grTexDownloadTablePartial(tmu, _type, Data, _start, _end);
 end;
 
@@ -571,6 +591,7 @@ begin
   Load(tmu, sizeof(TGrChipID));
   Load(minfilter_mode, sizeof(TGrTextureFilterMode));
   Load(magfilter_mode, sizeof(TGrTextureFilterMode));
+  TrackTMU(tmu);
   grTexFilterMode(tmu, minfilter_mode, magfilter_mode);
 end;
 
@@ -583,6 +604,7 @@ begin
   Load(tmu, sizeof(TGrChipID));
   Load(mode, sizeof(TGrMipMapMode));
   Load(lodBlend, sizeof(TFxBOOL));
+  TrackTMU(tmu);
   glide2x.grTexMipMapMode(tmu, mode, lodBlend);
 end;
 
@@ -600,6 +622,7 @@ begin
 
   if g_rep.disable_tex then
       exit;
+  TrackTMU(tmu);
   glide2x.grTexSource(tmu, startAddress, evenOdd, @info);
 end;
 
@@ -637,6 +660,8 @@ begin
 
   if g_rep.disable_tex then
       exit;
+  TrackTMU(tmu);
+
   mmid_new := glide2x.guTexAllocateMemory(tmu, evenOddMask, Width, Height, format, mmMode,
       smallLod, largeLod, aspectRatio, sClampMode, tClampMode, minFilterMode, magFilterMode, lodBias, lodBlend);
 

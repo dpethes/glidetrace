@@ -266,6 +266,7 @@ begin
   g_rep.disable_gamma       := cfg.ReadBool('config', 'DisableGamma', false);
   g_rep.disable_tex         := cfg.ReadBool('config', 'DisableTextures', false);
   g_rep.wireframe           := cfg.ReadBool('config', 'EnableWireframe', false);
+  g_rep.force_tmu0 := false;
   cfg.Free;
   //glide_dll_path := '..\glide2x.psvoodoo.dll';
   //glide_dll_path := '..\gld.dll';
