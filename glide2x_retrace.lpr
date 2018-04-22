@@ -116,6 +116,7 @@ begin
       grBufferClear: grBufferClear_do();
       grBufferNumPending: ; //skip
       grBufferSwap: ;       //buffer swaps are handled in the interpreter loop
+      grRenderBuffer: grRenderBuffer_do();
 
       { LFB
         - writes go through a pointer, so exact modifications aren't traceable through API
@@ -128,7 +129,9 @@ begin
 
       { Drawing
       }
+      grAADrawPoint: grAADrawPoint_do();
       grAADrawLine: grAADrawLine_do();
+      grAADrawTriangle: grAADrawTriangle_do();
       grDrawPoint: grDrawPoint_do();
       grDrawLine: grDrawLine_do();
       grDrawTriangle: grDrawTriangle_do();
@@ -215,10 +218,8 @@ begin
       grSstPerfStats, grSstResetPerfStats, grTriStats, grResetTriStats: ;  //skip
 
       { todo - easy to add, but they are missing test cases
-      grAADrawPoint
       grAADrawPolygon
       grAADrawPolygonVertexList
-      grAADrawTriangle
       guAADrawTriangleWithClip
 
       grAlphaControlsITRGBLighting
@@ -226,8 +227,6 @@ begin
 
       grLfbConstantAlpha
       grLfbConstantDepth
-
-      grRenderBuffer
 
       grTexDetailControl
       grTexMultibase

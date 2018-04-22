@@ -476,6 +476,7 @@ end;
 procedure grAADrawPoint(const pt: PGrVertex); stdcall;
 begin
   Trace(TraceFunc.grAADrawPoint);
+  Store(pt^, sizeof(TGrVertex));
   glide2x.grAADrawPoint(pt);
 end;
 
@@ -496,6 +497,12 @@ procedure grAADrawTriangle(const a, b, c: PGrVertex; ab_antialias, bc_antialias,
   stdcall;
 begin
   Trace(TraceFunc.grAADrawTriangle);
+  Store(a^, sizeof(TGrVertex));
+  Store(b^, sizeof(TGrVertex));
+  Store(c^, sizeof(TGrVertex));
+  Store(ab_antialias, sizeof(TFxBool));
+  Store(bc_antialias, sizeof(TFxBool));
+  Store(ca_antialias, sizeof(TFxBool));
   glide2x.grAADrawTriangle(a, b, c, ab_antialias, bc_antialias, ca_antialias);
 end;
 
@@ -513,7 +520,7 @@ end;
 
 procedure grBufferNumPending; stdcall;
 begin
-  //skip completely, retrace doesn't cares
+  //skip completely, retrace doesn't care
   //Trace(TraceFunc.grBufferNumPending);
   glide2x.grBufferNumPending();
 end;
@@ -531,6 +538,7 @@ end;
 procedure grRenderBuffer(buffer: TGrBuffer); stdcall;
 begin
   Trace(TraceFunc.grRenderBuffer);
+  Store(buffer, sizeof(TGrBuffer));
   glide2x.grRenderBuffer(buffer);
 end;
 

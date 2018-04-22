@@ -6,7 +6,7 @@ interface
 
 const
   //increase after incompatible trace format changes
-  TRACE_VERSION = 11;
+  TRACE_VERSION = 12;
 
 type
   //when adding traced functions add names in the same order as well (wrapped to 100 chars not including indentation)

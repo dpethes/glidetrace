@@ -27,13 +27,16 @@ var
 procedure grSstWinOpen_do(disp: TDisplay);
 procedure grSstWinClose_do(disp: TDisplay);
 procedure grBufferClear_do;
+procedure grRenderBuffer_do;
 procedure grSstOrigin_do;
 procedure grGlideSetState_do;
 
-procedure grAADrawLine_do;
 procedure grDrawPoint_do;
 procedure grDrawLine_do;
 procedure grDrawTriangle_do;
+procedure grAADrawPoint_do;
+procedure grAADrawLine_do;
+procedure grAADrawTriangle_do;
 procedure guDrawTriangleWithClip_do;
 procedure grDrawPlanarPolygon_do;
 procedure grDrawPlanarPolygonVertexList_do;
@@ -169,6 +172,14 @@ begin
   grBufferClear(color, alpha, depth);
 end;
 
+procedure grRenderBuffer_do;
+var
+  buffer: TGrBuffer;
+begin
+  Load(buffer, sizeof(TGrBuffer));
+  glide2x.grRenderBuffer(buffer);
+end;
+
 procedure grSstOrigin_do;
 var
   origin: TGrOriginLocation;
@@ -245,6 +256,14 @@ begin
   guDrawTriangleWithClip(@a, @b, @c);
 end;
 
+procedure grAADrawPoint_do;
+var
+  a: TGrVertex;
+begin
+  Load(a, sizeof(TGrVertex));
+  glide2x.grAADrawPoint(@a);
+end;
+
 procedure grAADrawLine_do;
 var
   a, b: TGrVertex;
@@ -252,6 +271,28 @@ begin
   Load(a, sizeof(TGrVertex));
   Load(b, sizeof(TGrVertex));
   glide2x.grAADrawLine(@a, @b);
+end;
+
+procedure grAADrawTriangle_do;
+var
+  a, b, c: TGrVertex;
+  ab_antialias, bc_antialias, ca_antialias: TFxBOOL;
+begin
+  Load(a, sizeof(TGrVertex));
+  Load(b, sizeof(TGrVertex));
+  Load(c, sizeof(TGrVertex));
+  Load(ab_antialias, sizeof(TFxBool));
+  Load(bc_antialias, sizeof(TFxBool));
+  Load(ca_antialias, sizeof(TFxBool));
+
+  if g_rep.wireframe then begin
+      grDrawLine(@a, @b);
+      grDrawLine(@b, @c);
+      grDrawLine(@c, @a);
+      exit;
+  end;
+
+  glide2x.grAADrawTriangle(@a, @b, @c, ab_antialias, bc_antialias, ca_antialias);
 end;
 
 procedure grDrawPlanarPolygon_do;
