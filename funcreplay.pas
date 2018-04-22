@@ -15,6 +15,10 @@ var
       scratchpad: pbyte;  //multipurpose scratch buffer
       mmid_translation_table: PGrMipMapId;
 
+      //glide state
+      hintmask: TFxU32;
+      active_tmus: array[GR_TMU0..GR_TMU2] of boolean;
+
       //settings
       force_single_window: boolean;  //call sstWinOpen just once and don't close it
       window_opened: boolean;
@@ -119,6 +123,7 @@ procedure TrackTMU(var tmu: TGrChipID);
 begin
   if g_rep.force_tmu0 and (tmu <> GR_TMU0) then
       tmu := GR_TMU0;
+  g_rep.active_tmus[tmu] := true;
 end;
 
 
@@ -935,6 +940,7 @@ begin
   Load(hintType, sizeof(TGrHint));
   Load(hintMask, sizeof(TFxU32));
   grHints(hintType, hintMask);
+  g_rep.hintmask := hintmask;
 end;
 
 procedure guAlphaSource_do;
