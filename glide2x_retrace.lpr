@@ -395,6 +395,7 @@ begin
       glide2x.grSstWinClose();
       disp.FreeDisplay;
   end;
+  disp.Free;
   glide2x.grGlideShutdown;
 
   freemem(g_rep.mmid_translation_table);
