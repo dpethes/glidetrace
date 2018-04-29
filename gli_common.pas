@@ -113,6 +113,10 @@ const
       'guTexCreateColorMipMap',
       'ConvertAndDownloadRle');
 
+  DrawCalls = [
+      grAADrawLine, grAADrawPoint, grAADrawPolygon, grAADrawPolygonVertexList, grAADrawTriangle,
+      grDrawLine, grDrawPlanarPolygon, grDrawPlanarPolygonVertexList, grDrawPoint,
+      grDrawPolygon, grDrawPolygonVertexList, grDrawTriangle, guDrawTriangleWithClip];
 
 implementation
 

@@ -283,14 +283,24 @@ const
 var
   ev: TSDL_Event;
   key: TSDLKey;
-  done: boolean = false;
-  play: boolean = true;
-  step_forward,
-  step_backward: boolean;
   glFunc, i: TraceFunc;
   frames: integer;
+
+  done: boolean = false;
+  ui: record
+      sleep_ms: integer;
+      play: boolean;
+      buffer_clears_on_swap: boolean;
+      frame_analysis: boolean;
+      step_forward,
+      step_backward: boolean;
+  end;
+  draw_call: record
+    count,
+    max,
+    start, limit: integer;
+  end;
   glFuncCallStats: array[TraceFunc] of integer;
-  sleepInterval: integer = 16;
 
 begin
   if not FileExists(TRACE_FILE_NAME) then begin
@@ -310,6 +320,10 @@ begin
   //reserve "plenty" of space - should be enough for one glide call param list
   g_rep.scratchpad := getmem(16 * (1 shl 20));
   g_rep.mmid_translation_table := getmem(MMID_TRANSLATION_TABLE_SIZE);
+  g_rep.active_tmus[GR_TMU0] := false;
+  g_rep.active_tmus[GR_TMU1] := false;
+  g_rep.active_tmus[GR_TMU2] := false;
+  g_rep.frame_draw_call_skip := false;
 
   //open SDL window
   disp := TDisplay.Create;
@@ -318,41 +332,94 @@ begin
   //see no evil
   MaskFPUExceptions;
 
+  //init UI state
   done := false;
   frames := 0;
   for i := Low(TraceFunc) to High(TraceFunc) do
       glFuncCallStats[i] := 0;
+  with draw_call do begin
+      count := 0;
+      max   := 0;
+      start := 0;
+      limit := 0;
+  end;
+  with ui do begin
+      play := true;
+      sleep_ms := 16;
+      buffer_clears_on_swap := false;
+      frame_analysis := false;
+  end;
 
   while not done do begin
       glFunc := LoadFunc;
       InterpretFunc(glFunc);
       done := not HaveMore;
 
-      glFuncCallStats[glFunc] += 1;
+      if glFunc in DrawCalls then
+          draw_call.count += 1;
 
-      //run event handling
+      g_rep.frame_draw_call_skip := draw_call.start > draw_call.count;
+      if not ((glFunc in DrawCalls) and g_rep.frame_draw_call_skip) then
+         glFuncCallStats[glFunc] += 1;
+
+      //if the playback is stopped, we have to issue bufferswap ourselves
+      if not ui.play and (draw_call.count >= draw_call.limit) then
+          glFunc := grBufferSwap;
+
+      //run event handling and UI drawing
       if glFunc = grBufferSwap then
       begin
           //write(frames, #13);
-          Imgui.Text('frame: %d',[frames]);
-          ImGui.Checkbox('play', @play);
-          ImGui.SameLine();
-          step_backward := ImGui.Button('<-');
-          ImGui.SameLine();
-          step_forward := ImGui.Button('->');
+          Imgui.Text('frame: %d (draws:%d)',[frames, draw_call.count]);
+          ImGui.Checkbox('play', @ui.play);
+          if not ui.play then begin
+              ImGui.SameLine();
+              ImGui.Checkbox('analyze', @ui.frame_analysis);
+              draw_call.limit := draw_call.count;
+              if not ui.frame_analysis then begin  //todo why this breaks if analysis?
+                  ImGui.SameLine();
+                  ui.step_backward := ImGui.Button('<-');
+                  ImGui.SameLine();
+                  ui.step_forward := ImGui.Button('->');
+              end;
+          end;
           ImGui.Checkbox('wireframe', @g_rep.wireframe);
-          ImGui.SliderInt('sleep', @sleepInterval, 0, 100);
+          ImGui.SameLine();
+          ImGui.Checkbox('clear on swap', @ui.buffer_clears_on_swap);
+          ImGui.SliderInt('sleep', @ui.sleep_ms, 0, 100);
           for i := Low(TraceFunc) to High(TraceFunc) do begin
               if glFuncCallStats[i] > 0 then begin
                   Imgui.Text(TraceFuncNames[i] + ': %d', [glFuncCallStats[i]]);
                   glFuncCallStats[i] := 0;
               end;
           end;
+          if not ui.play then begin
+              ImGui.Begin_('calls');
+              ImGui.PushItemWidth(-35);
+
+              //todo limit max. num of calls for each frame individually
+              ImGui.SliderInt('skip', @draw_call.start, 0, draw_call.max);
+              ImGui.SliderInt('stop', @draw_call.limit, 0, draw_call.max);
+              ImGui.PopItemWidth;
+
+              ImGui.Text('TMU0/1/2 active: %s/%s/%s', [
+                         BoolToStr(g_rep.active_tmus[GR_TMU0], true),
+                         BoolToStr(g_rep.active_tmus[GR_TMU1], true),
+                         BoolToStr(g_rep.active_tmus[GR_TMU2], true)]);
+              ImGui.End_;
+          end;
           Imgui.Render();
 
           glide2x.grBufferSwap(1);
-          //glide2x.grBufferClear(0,0,0);  //unreal tournament doesn't clear the buffers - wireframe mode looks weird
-          sleep(sleepInterval);
+
+          //unreal tournament doesn't clear the buffers - wireframe mode looks weird
+          if ui.buffer_clears_on_swap then
+              glide2x.grBufferClear(0,0,0);
+          Sleep(ui.sleep_ms);
+
+          //screenshots
+          //g_ctx.buffer_swaps += 1;
+          //SaveFrontBuffer();
 
           if SDL_PollEvent(@ev) <> 0 then begin
               case ev.type_ of
@@ -364,25 +431,28 @@ begin
                       case key of
                           SDLK_ESCAPE, SDLK_q: done := True;
                           SDLK_w: g_rep.wireframe := not g_rep.wireframe;
-                          SDLk_p, SDLK_SPACE: play := not play;
-                          SDLK_RIGHT: step_forward := true;
-                          SDLK_LEFT: step_backward := true;
+                          SDLk_p, SDLK_SPACE: ui.play := not ui.play;
+                          SDLK_RIGHT: ui.step_forward := true;
+                          SDLK_LEFT: ui.step_backward := true;
                       end;
                   end;
               end;
               ImGui_ImplSdlGlide2x_ProcessEvent(@ev);
           end;
 
-          if not play then begin
-              if step_backward then
+          if ui.play then begin
+              frames += 1;
+          end else begin
+              if ui.step_backward then
                   frames -= 1;
-              if not step_forward then
+              if not ui.step_forward then
                   SeekToFrame(frames)
               else
                   frames += 1;
           end;
-          if play then
-              frames += 1;
+          if draw_call.max < draw_call.count then
+              draw_call.max := draw_call.count;
+          draw_call.count := 0;
 
           ImGui_ImplSdlGlide2x_NewFrame();
       end;
