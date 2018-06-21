@@ -28,6 +28,8 @@ var
       disable_cull_mode: boolean;  //fixes debris in homeworld
       wireframe: boolean;
       force_tmu0: boolean;  //make all grTex/guTex calls use TMU0, can be useful for openglide
+
+      frame_draw_call_skip: boolean;  //don't issue draw calls
   end;
 
 procedure grSstWinOpen_do(disp: TDisplay);
@@ -249,6 +251,8 @@ var
   a: TGrVertex;
 begin
   LoadVtx(a);
+  if g_rep.frame_draw_call_skip then
+      exit;
   glide2x.grDrawPoint(@a);
 end;
 
@@ -258,6 +262,8 @@ var
 begin
   LoadVtx(a);
   LoadVtx(b);
+  if g_rep.frame_draw_call_skip then
+      exit;
   glide2x.grDrawLine(@a, @b);
 end;
 
@@ -269,6 +275,8 @@ begin
   LoadVtx(b);
   LoadVtx(c);
 
+  if g_rep.frame_draw_call_skip then
+      exit;
   if g_rep.wireframe then begin
       grDrawLine(@a, @b);
       grDrawLine(@b, @c);
@@ -287,6 +295,8 @@ begin
   LoadVtx(b);
   LoadVtx(c);
 
+  if g_rep.frame_draw_call_skip then
+      exit;
   if g_rep.wireframe then begin
       grDrawLine(@a, @b);
       grDrawLine(@b, @c);
@@ -302,6 +312,8 @@ var
   a: TGrVertex;
 begin
   LoadVtx(a);
+  if g_rep.frame_draw_call_skip then
+      exit;
   glide2x.grAADrawPoint(@a);
 end;
 
@@ -311,6 +323,8 @@ var
 begin
   LoadVtx(a);
   LoadVtx(b);
+  if g_rep.frame_draw_call_skip then
+      exit;
   glide2x.grAADrawLine(@a, @b);
 end;
 
@@ -326,6 +340,8 @@ begin
   Load(bc_antialias, sizeof(TFxBool));
   Load(ca_antialias, sizeof(TFxBool));
 
+  if g_rep.frame_draw_call_skip then
+      exit;
   if g_rep.wireframe then begin
       grDrawLine(@a, @b);
       grDrawLine(@b, @c);
@@ -349,6 +365,8 @@ begin
   Load(ilist^, nverts * 4);
   Load(vlist^, nverts * sizeof(TGrVertex));
 
+  if g_rep.frame_draw_call_skip then
+      exit;
   //wrapper reorders the vlist, so index list can be skipped
   if g_rep.wireframe then begin
       for i := 0 to nverts - 2 do
@@ -369,6 +387,8 @@ begin
   Load(nverts, 4);
   LoadVtxList(vlist, nverts);
 
+  if g_rep.frame_draw_call_skip then
+      exit;
   if g_rep.wireframe then begin
       for i := 0 to nverts - 2 do
           grDrawLine(@vlist[i], @vlist[i + 1]);
@@ -391,6 +411,8 @@ begin
   Load(ilist^, nverts * 4);
   LoadVtxList(vlist, nverts);
 
+  if g_rep.frame_draw_call_skip then
+      exit;
   //wrapper reorders the vlist, so index list can be skipped
   if g_rep.wireframe then begin
       for i := 0 to nverts - 2 do
@@ -411,6 +433,8 @@ begin
   Load(nverts, 4);
   LoadVtxList(vlist, nverts);
 
+  if g_rep.frame_draw_call_skip then
+      exit;
   if g_rep.wireframe then begin
       for i := 0 to nverts - 2 do
           grDrawLine(@vlist[i], @vlist[i + 1]);
