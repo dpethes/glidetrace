@@ -166,7 +166,7 @@ const
       (800, 600), (960, 720), (856, 480), (512, 256), (1024, 768), (1280, 1024), (1600, 1200), (400, 300)
       );
 var
-  screen_resolution: TGrScreenResolution;
+  resolution: TGrScreenResolution;
   refresh_rate: TGrScreenRefresh;
   color_format: TGrColorFormat;
   origin_location: TGrOriginLocation;
@@ -175,7 +175,7 @@ var
   Width, Height: word;
 begin
   //hWnd is not stored
-  Load(screen_resolution, sizeof(TGrScreenResolution));
+  Load(resolution, sizeof(TGrScreenResolution));
   Load(refresh_rate, sizeof(TGrScreenRefresh));
   Load(color_format, sizeof(TGrColorFormat));
   Load(origin_location, sizeof(TGrOriginLocation));
@@ -185,12 +185,12 @@ begin
   if g_rep.window_opened and g_rep.force_single_window then
       exit;
 
-  Assert(screen_resolution <> GR_RESOLUTION_NONE);
-  Width := ResolutionList[screen_resolution][0];
-  Height := ResolutionList[screen_resolution][1];
+  Assert(resolution <> GR_RESOLUTION_NONE);
+  Width  := ResolutionList[resolution][0];
+  Height := ResolutionList[resolution][1];
   disp.InitDisplay(Width, Height);
 
-  glide2x.grSstWinOpen(0, screen_resolution, refresh_rate, color_format,
+  glide2x.grSstWinOpen(0, resolution, refresh_rate, color_format,
       origin_location, nColBuffers, nAuxBuffers);
 
   g_rep.window_opened := True;
