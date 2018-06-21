@@ -25,6 +25,7 @@ var
 
       disable_tex: boolean;
       disable_gamma: boolean;
+      disable_cull_mode: boolean;  //fixes debris in homeworld
       wireframe: boolean;
       force_tmu0: boolean;  //make all grTex/guTex calls use TMU0, can be useful for openglide
   end;
@@ -871,6 +872,8 @@ var
   mode: TGrCullMode;
 begin
   Load(mode, sizeof(TGrCullMode));
+  if g_rep.disable_cull_mode then
+      exit;
   grCullMode(mode);
 end;
 
