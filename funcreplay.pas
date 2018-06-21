@@ -97,6 +97,11 @@ procedure guColorCombineFunction_do;
 
 implementation
 
+const
+  //does something else besides 3dfx's opengl generate these large coords?
+  VERTEX_SNAP_COMPARE = 4096.0;
+  VERTEX_SNAP = single( 3 << 18 );  //see gdraw
+
 { ================================================================================================ }
 //mmid translation - just use a big enough buffer, nothing smart
 procedure MmidStore(old_mmid, new_mmid: TGrMipMapId);
@@ -129,7 +134,10 @@ end;
 
 procedure VertexHook(var v: TGrVertex); inline;
 begin
-
+  if v.x > VERTEX_SNAP_COMPARE then begin
+      v.x -= VERTEX_SNAP;
+      v.y -= VERTEX_SNAP;
+  end;
 end;
 
 procedure LoadVtx(out v: TGrVertex);
