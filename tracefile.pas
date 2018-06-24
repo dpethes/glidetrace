@@ -5,10 +5,13 @@ unit tracefile;
 interface
 
 uses
-  SysUtils, classes, math, gli_common, glist;
+  SysUtils, classes, math, gli_common,
+  dc2_encoder, dc2_decoder, crc32fast,
+  glist;
 
 const
   MEM_BUFFER_SIZE = 1 << 20;
+  LOAD_BUFFER_SIZE = 10 << 20;
   CMD_GUARD: longword = $deadbeef;
 
 type
@@ -17,14 +20,16 @@ type
 var
   g_tr: record
       frame_offsets: TFrameOffsetList;
-      next_cmd_is_frame_marker: boolean;
       call_stats: array[TraceFunc] of integer;
+      frame_size_bytes: integer;
+      frame_compressed_size_bytes: integer;
   end;
 
   g_tracewrite: record
       file_text: Text;
       file_bin: file;
       buffer: TMemoryStream;
+      compressed_buffer: TMemoryStream;
       trace_text: boolean;
       trace_bin: boolean;
       flush_each_write: boolean;
@@ -60,6 +65,150 @@ implementation
 { ================================================================================================ }
 { trace writing }
 
+const
+  MAX_COMPRESSED_SUBBLOCK_SIZE = 32 * 1024;
+
+function EncodeBytesToStream(const src: pbyte; const size: integer; var dest: TMemoryStream): integer;
+var
+  encoder: TDc2Encoder;
+  src_data: pbyte;
+  bytes_in: integer;
+  bytes_left, encoded_size: integer;
+  encdata: TEncodedSlice;
+begin
+  encoder := TDc2Encoder.Create();
+
+  encoded_size := 0;
+  src_data := src;
+  bytes_in := MAX_COMPRESSED_SUBBLOCK_SIZE;
+  bytes_left := size;
+
+  while bytes_left > 0 do begin
+      if bytes_left <= bytes_in then begin
+          bytes_in := bytes_left;
+          encoder.SetLastSlice();
+      end;
+
+      encoder.EncodeSlice(src_data, bytes_in, encdata);
+      dest.Write(encdata.data^, encdata.size);
+      encoded_size += encdata.size;
+
+      src_data += bytes_in;
+      bytes_left -= bytes_in;
+  end;
+
+  result := encoded_size;
+  encoder.Free;
+end;
+
+
+procedure DecodeBytesToStream(const src: pbyte; const size: integer; var dest: TMemoryStream);
+var
+  decoder: TDc2Decoder;
+  src_data: pbyte;
+  bytes_in: integer;
+  bytes_decoded: integer;
+  decdata: TDecodedSlice;
+begin
+  decoder := TDc2Decoder.Create;
+
+  src_data := src;
+  bytes_decoded := 0;
+
+  while bytes_decoded < size do begin
+      bytes_in := size - bytes_decoded;
+      if bytes_in > MAX_COMPRESSED_SUBBLOCK_SIZE then
+          bytes_in := MAX_COMPRESSED_SUBBLOCK_SIZE
+      else
+          decoder.SetLastSlice;
+
+      repeat
+          decoder.DecodeSlice(src_data, bytes_in, decdata);
+          dest.Write(decdata.data^, decdata.size);
+      until decdata.size = 0;
+
+      src_data += bytes_in;
+      bytes_decoded += bytes_in;
+  end;
+  decoder.Free;
+end;
+
+
+
+procedure FramingWrite();
+var
+  encoded_size: integer;
+  crc: LongWord;
+begin
+  crc := crc32(0, PByte(g_tracewrite.buffer.Memory), g_tracewrite.buffer.Position);
+
+  g_tracewrite.compressed_buffer.Clear;
+  encoded_size := EncodeBytesToStream(
+                    PByte(g_tracewrite.buffer.Memory),
+                    g_tracewrite.buffer.Position,
+                    g_tracewrite.compressed_buffer
+                  );
+
+  Trace('frame size: ' + IntToStr(g_tracewrite.buffer.Position));
+  Trace('compressed size: ' + IntToStr(encoded_size));
+
+  BlockWrite(g_tracewrite.file_bin, encoded_size, 4);
+  BlockWrite(g_tracewrite.file_bin, crc, 4);
+  BlockWrite(g_tracewrite.file_bin, PByte(g_tracewrite.compressed_buffer.Memory)^, encoded_size);
+
+  //raw
+  {
+  encoded_size := g_tracewrite.buffer.Position;
+  BlockWrite(g_tracewrite.file_bin, g_tracewrite.buffer.Position, 4);
+  BlockWrite(g_tracewrite.file_bin, crc, 4);
+  BlockWrite(g_tracewrite.file_bin, PByte(g_tracewrite.buffer.Memory)^, encoded_size);
+  }
+
+  g_tracewrite.buffer.Clear;
+end;
+
+
+procedure FramingRead;
+var
+  size_avail: int64;
+  frame_size: integer;
+  crc, stored_crc: LongWord;
+begin
+
+  g_traceread.file_pos := FilePos(g_traceread.file_bin);
+  size_avail := FileSize(g_traceread.file_bin) - g_traceread.file_pos;
+  if size_avail < 4 then
+      exit;
+
+  blockread(g_traceread.file_bin, frame_size, 4);
+  blockread(g_traceread.file_bin, stored_crc, 4);
+  blockread(g_traceread.file_bin, g_traceread.load_buffer^, frame_size);
+
+  g_traceread.buffer.Clear;
+  DecodeBytesToStream(g_traceread.load_buffer, frame_size, g_traceread.buffer);
+
+
+  g_tr.frame_compressed_size_bytes := frame_size;
+  g_tr.frame_size_bytes := g_traceread.buffer.Position;
+
+  //raw
+  {
+  blockread(g_traceread.file_bin, frame_size, 4);
+  blockread(g_traceread.file_bin, stored_crc, 4);
+  blockread(g_traceread.file_bin, g_traceread.load_buffer^, frame_size);
+  g_traceread.buffer.Clear;
+  g_traceread.buffer.Write(g_traceread.load_buffer^, frame_size);
+  }
+  crc := crc32(0, PByte(g_traceread.buffer.Memory), g_traceread.buffer.Position);
+  if crc <> stored_crc then begin
+      writeln('couldn''t decode frame data!');
+      halt;
+  end;
+
+  g_traceread.buffer.Position := 0
+end;
+
+
 procedure OpenTraceFileWrite(s: string);
 var
   i: TraceFunc;
@@ -70,7 +219,7 @@ begin
   with g_tracewrite do begin
       trace_bin := True;
       trace_text := false;
-      flush_each_write := true;
+      flush_each_write := false;
 
       Assign(file_text, s + '.txt');
       Rewrite(file_text);
@@ -80,7 +229,14 @@ begin
 
       buffer := TMemoryStream.Create;
       buffer.SetSize(MEM_BUFFER_SIZE * 2);
+      buffer.WriteBuffer(TRACE_ID[1], length(TRACE_ID));
       buffer.WriteDWord(TRACE_VERSION);
+      //flush file header
+      BlockWrite(file_bin, PByte(buffer.Memory)^, buffer.Position);
+      buffer.Clear;
+
+      compressed_buffer := TMemoryStream.Create;
+      compressed_buffer.SetSize(MEM_BUFFER_SIZE div 2);
   end;
 end;
 
@@ -89,8 +245,9 @@ var
   i: TraceFunc;
 begin
   if g_tracewrite.buffer.Position > 0 then
-      BlockWrite(g_tracewrite.file_bin, PByte(g_tracewrite.buffer.Memory)^, g_tracewrite.buffer.Position);
+      FramingWrite();
   g_tracewrite.buffer.Free;
+  g_tracewrite.compressed_buffer.Free;
   Close(g_tracewrite.file_bin);
 
   writeln(g_tracewrite.file_text, '===');
@@ -115,12 +272,7 @@ procedure WriteBin(const buf; size: integer);
 begin
   if not g_tracewrite.trace_bin then
       exit;
-
   g_tracewrite.buffer.Write(buf, size);
-  if g_tracewrite.buffer.Position > MEM_BUFFER_SIZE then begin
-      BlockWrite(g_tracewrite.file_bin, PByte(g_tracewrite.buffer.Memory)^, g_tracewrite.buffer.Position);
-      g_tracewrite.buffer.Clear;
-  end;
 end;
 
 procedure Store(const buf; const size: integer);
@@ -155,6 +307,10 @@ begin
   WriteTxt(TraceFuncNames[fn]);
   WriteBin(fn, 1);
   StoreGuard;
+
+  if fn = grBufferSwap then begin
+      FramingWrite();
+  end;
 end;
 
 procedure Trace(s: string);
@@ -170,22 +326,9 @@ end;
 { ================================================================================================ }
 { trace reading }
 
-procedure RefillReadBuffer;
-var
-  size_avail: int64;
-begin
-  g_traceread.file_pos := FilePos(g_traceread.file_bin);
-  size_avail := FileSize(g_traceread.file_bin) - g_traceread.file_pos;
-  if size_avail > MEM_BUFFER_SIZE then
-      size_avail := MEM_BUFFER_SIZE;
-
-  blockread(g_traceread.file_bin, g_traceread.load_buffer^, size_avail);
-  g_traceread.buffer.Clear;
-  g_traceread.buffer.Write(g_traceread.load_buffer^, size_avail);
-  g_traceread.buffer.Position := 0;
-end;
-
 function OpenTraceFileRead(s: string): boolean;
+const
+  HEADER_SIZE = Length(TRACE_ID) + 4;
 begin
   result := false;
   if not FileExists(s) then
@@ -194,16 +337,22 @@ begin
   Reset(g_traceread.file_bin, 1);
 
   g_traceread.buffer := TMemoryStream.Create;
-  g_traceread.load_buffer := Getmem(MEM_BUFFER_SIZE);
-  RefillReadBuffer;
+  g_traceread.load_buffer := Getmem(LOAD_BUFFER_SIZE);
 
-  if g_traceread.buffer.Size <= 4 then begin
+  if FileSize(g_traceread.file_bin) <= HEADER_SIZE then begin
       writeln('invalid or empty trace');
-  end else if g_traceread.buffer.ReadDWord() <> TRACE_VERSION then begin
-      writeln('cannot retrace! expected version is ', TRACE_VERSION);
-  end else
-      result := true;
+  end else begin
+      blockread(g_traceread.file_bin, g_traceread.load_buffer^, HEADER_SIZE);
+      g_traceread.buffer.Write(g_traceread.load_buffer^, HEADER_SIZE);
+      g_traceread.buffer.Position := Length(TRACE_ID);
 
+      if g_traceread.buffer.ReadDWord() <> TRACE_VERSION then
+          writeln('cannot retrace! expected version is ', TRACE_VERSION)
+      else
+          result := true;
+  end;
+
+  FramingRead;
   if not result then begin
       CloseTraceFileRead;
       exit;
@@ -215,6 +364,7 @@ end;
 
 procedure CloseTraceFileRead;
 begin
+  g_tr.frame_offsets.Free;
   g_traceread.buffer.Free;
   freemem(g_traceread.load_buffer);
   Close(g_traceread.file_bin);
@@ -233,14 +383,9 @@ begin
   how_much := current_fpos - fpos;
   assert(how_much >= 0, 'bad seek');
 
-  if how_much <= g_traceread.buffer.Position then begin
-      //fast seek - just rewind membuffer
-      g_traceread.buffer.Position := g_traceread.buffer.Position - how_much;
-  end
-  else begin
-      Seek(g_traceread.file_bin, fpos);
-      RefillReadBuffer;
-  end;
+  Seek(g_traceread.file_bin, fpos);
+  FramingRead;
+  //todo if the frame is the same, just rewind buffer
 end;
 
 function HaveMore: boolean;
@@ -260,7 +405,7 @@ begin
       partial_size := size - left_bytes;
       if left_bytes > 0 then
           g_traceread.buffer.Read(buf, left_bytes);
-      RefillReadBuffer;
+      FramingRead;
       g_traceread.buffer.Read((pbyte(@buf) + left_bytes)^, partial_size);
   end else begin
       g_traceread.buffer.Read(buf, size);
@@ -283,24 +428,22 @@ var
   cmd: byte;
   fpos: int64;
 begin
-  if g_tr.next_cmd_is_frame_marker then begin
-      //some extra checks, because seeking backwards can mess up the frame indexing order
-      fpos := g_traceread.file_pos + g_traceread.buffer.Position;
-      if (g_tr.frame_offsets.Count = 0) or (g_tr.frame_offsets[g_tr.frame_offsets.Count-1] < fpos) then
-          g_tr.frame_offsets.Add(fpos);
-  end;
-
   Load(cmd, 1);
   LoadGuard;
   if cmd <= ord(High(TraceFunc)) then begin
       result := TraceFunc(cmd);
-      g_tr.next_cmd_is_frame_marker := result in [grSstWinOpen, grBufferSwap];
   end else begin
       writeln('bad command');  //ouch, cannot continue
       halt;
   end;
-end;
 
+  if result = grBufferSwap then begin
+      fpos := FilePos(g_traceread.file_bin);
+      if (g_tr.frame_offsets.Count = 0) or (g_tr.frame_offsets[g_tr.frame_offsets.Count-1] < fpos) then
+          g_tr.frame_offsets.Add(fpos);
+      FramingRead;
+  end;
+end;
 
 
 end.

@@ -6,7 +6,8 @@ interface
 
 const
   //increase after incompatible trace format changes
-  TRACE_VERSION = 12;
+  TRACE_VERSION = 13;
+  TRACE_ID = 'glide2x_trace';
 
 type
   //when adding traced functions add names in the same order as well (wrapped to 100 chars not including indentation)
