@@ -10,7 +10,7 @@ uses
 var
   g_ctx: record
       data_16bit, data_24bit: PByte;
-      wxh: integer;
+      width, height, wxh: integer;
       buffer_swaps, lfb_locks: integer;
 
       lfb_write_trace: boolean;
@@ -76,7 +76,7 @@ end;
 
 procedure InitGCtx;
 var
-  wxh: integer;
+  w, h, wxh: integer;
   lfb_valloc_flags: integer;
 begin
   with g_ctx do
@@ -90,8 +90,10 @@ begin
   end;
   g_ctx.lfb_write_trace := false;  //experimental
 
-  wxh := 640 * 480;  //todo use grSstScreenWidth() * grSstScreenHeight();
-  Trace(format('InitGBuffer %dx%d', [grSstScreenWidth(), grSstScreenHeight()]));
+  w := grSstScreenWidth();
+  h := grSstScreenHeight();
+  wxh := w * h;
+  Trace(format('InitGBuffer %dx%d', [w, h]));
 
   if g_ctx.wxh < wxh then
   begin
@@ -102,6 +104,8 @@ begin
               VirtualFree(g_ctx.lfb_write_buffer, 0, MEM_RELEASE);
           //todo free valloc;
       end;
+      g_ctx.width := w;
+      g_ctx.height := h;
       g_ctx.wxh := wxh;
       g_ctx.data_16bit := GetMem(wxh * 5);
       g_ctx.data_24bit := g_ctx.data_16bit + wxh * 2;
@@ -124,26 +128,26 @@ begin
   if g_ctx.wxh <= 0 then
       exit;
 
-  ok := grLfbReadRegion(GR_BUFFER_FRONTBUFFER, 0, 0, 640, 480, 640 * 2, g_ctx.data_16bit);
+  ok := grLfbReadRegion(GR_BUFFER_FRONTBUFFER, 0, 0, g_ctx.width, g_ctx.height, g_ctx.width * 2, g_ctx.data_16bit);
   if ok then
   begin
-      Rgb565ToRgb24(g_ctx.data_16bit, g_ctx.data_24bit, 640, 480);
-      PnmSave(format('screen_%0.6d.pnm', [g_ctx.buffer_swaps]), g_ctx.data_24bit, 640, 480);
+      Rgb565ToRgb24(g_ctx.data_16bit, g_ctx.data_24bit, g_ctx.width, g_ctx.height);
+      PnmSave(format('screenshots\screen_%0.6d.pnm', [g_ctx.buffer_swaps]), g_ctx.data_24bit, g_ctx.width, g_ctx.height);
   end;
 end;
 
 procedure SaveLfbPtr();
 const
-  MAX_ADR = 480;
+  MAX_ADR = 1200;  //max glide window height
 var
   used_adresses: array[0..MAX_ADR] of pointer;
   used_adresses_count, page_size: longword;
   gww_ok: longword;
 begin
   used_adresses_count := MAX_ADR;
-  gww_ok := GetWriteWatch(WRITE_WATCH_FLAG_RESET, g_ctx.lfb_write_buffer,
-      g_ctx.lfb_write_buffer_size, @used_adresses[0], @used_adresses_count, @page_size);
-
+  gww_ok := GetWriteWatch(WRITE_WATCH_FLAG_RESET,
+                          g_ctx.lfb_write_buffer, g_ctx.lfb_write_buffer_size,
+                          @used_adresses[0], @used_adresses_count, @page_size);
   if gww_ok <> 0 then begin
       Trace('something went wrong with LFB tracing...');
       exit;
@@ -151,8 +155,8 @@ begin
 
   Trace(format('adr: %d  pagesize: %d', [used_adresses_count, page_size]));
 
-  Rgb565ToRgb24(g_ctx.lfb_write_buffer, g_ctx.data_24bit, 640, 480);
-  PnmSave(format('lfbptr_%0.6d.pnm', [g_ctx.lfb_locks]), g_ctx.data_24bit, 640, 480);
+  Rgb565ToRgb24(g_ctx.lfb_write_buffer, g_ctx.data_24bit, g_ctx.width, g_ctx.height);
+  PnmSave(format('lfbptr_%0.6d.pnm', [g_ctx.lfb_locks]), g_ctx.data_24bit, g_ctx.width, g_ctx.height);
 end;
 
 
