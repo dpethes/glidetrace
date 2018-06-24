@@ -20,6 +20,7 @@ procedure ImGui_ImplSdlGlide2x_Shutdown();
 procedure ImGui_ImplSdlGlide2x_NewFrame();
 procedure Imgui_ImplSdlGlide2x_RenderDrawLists(draw_data: PImDrawData); cdecl;
 function  ImGui_ImplSdlGlide2x_ProcessEvent(event: PSDL_Event): boolean;
+procedure ImGui_ImplSdlGlide2x_ReuploadFontTexture;
 
 implementation
 
@@ -100,6 +101,11 @@ begin
   ImFontAtlas_SetTexID(font_atlas, ImTextureID(g_FontTexture.adress));
 
   SDL_EnableUNICODE(1);
+end;
+
+procedure ImGui_ImplSdlGlide2x_ReuploadFontTexture;
+begin
+  grTexDownloadMipMap(GR_TMU0, g_FontTexture.adress, GR_MIPMAPLEVELMASK_BOTH, @g_FontTexture.info);
 end;
 
 procedure ImGui_ImplSdlGlide2x_InvalidateDeviceObjects();
@@ -213,16 +219,14 @@ procedure ResetGlideState;
 begin
   grTexMipMapMode(GR_TMU0, GR_MIPMAP_DISABLE, FXFALSE);
   grTexFilterMode(GR_TMU0, GR_TEXTUREFILTER_BILINEAR, GR_TEXTUREFILTER_BILINEAR);  //not strictly necessary
-  grChromakeyMode(GR_CHROMAKEY_DISABLE);
-  grFogMode(GR_FOG_DISABLE);
+
   grCullMode(GR_CULL_DISABLE);
   grRenderBuffer(GR_BUFFER_BACKBUFFER);
-  grAlphaTestFunction(GR_CMP_ALWAYS);
   grAlphaControlsITRGBLighting(FXFALSE);
   grColorMask(FXTRUE, FXFALSE);
   grDepthMask(FXFALSE);
-  grDepthBufferMode(GR_DEPTHBUFFER_DISABLE);
   grDepthBufferFunction(GR_CMP_LESS);
+  grDisableAllEffects;
 
   grChromakeyValue(0);
   grAlphaTestReferenceValue(0);

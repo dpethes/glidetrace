@@ -1,6 +1,6 @@
 {
 Bindings for dear imgui (AKA ImGui) - a bloat-free graphical user interface library for C++
-Based on ImGui 1.51 + cimgui wrapper
+Based on ImGui 1.53 + cimgui wrapper
 Not all functions were tested.
 }
 unit fpimgui;
@@ -42,6 +42,11 @@ type
   end;
   PImVec4 = ^ImVec4;
 
+const
+  FLT_MAX: single = 3.402823466e+38;  //must match c/c++ def
+  ImVec2Zero: ImVec2 = (x: 0; y: 0);
+
+type
   ImU32 = dword;
   ImWchar = word;
   PImWchar = PWord;
@@ -51,8 +56,6 @@ type
   ImGuiStyleVar = longint;
   ImGuiColorEditFlags = longint;
   ImGuiKey = longint;
-  ImGuiInputTextFlags = longint;
-  ImGuiSelectableFlags = longint;
 
   { Enums }
 
@@ -66,7 +69,7 @@ type
       ImGuiWindowFlags_NoScrollWithMouse      = 1 shl 4,   // Disable user vertically scrolling with mouse wheel
       ImGuiWindowFlags_NoCollapse             = 1 shl 5,   // Disable user collapsing window by double-clicking on it
       ImGuiWindowFlags_AlwaysAutoResize       = 1 shl 6,   // Resize every window to its content every frame
-      ImGuiWindowFlags_ShowBorders            = 1 shl 7,   // Show borders around windows and items
+      //ImGuiWindowFlags_ShowBorders            = 1 shl 7,   // OBSOLETE
       ImGuiWindowFlags_NoSavedSettings        = 1 shl 8,   // Never load/save settings in .ini file
       ImGuiWindowFlags_NoInputs               = 1 shl 9,   // Disable catching mouse or keyboard inputs
       ImGuiWindowFlags_MenuBar                = 1 shl 10,  // Has a menu-bar
@@ -75,7 +78,30 @@ type
       ImGuiWindowFlags_NoBringToFrontOnFocus  = 1 shl 13,  // Disable bringing window to front when taking focus (e.g. clicking on it or programatically giving it focus)
       ImGuiWindowFlags_AlwaysVerticalScrollbar= 1 shl 14,  // Always show vertical scrollbar (even if ContentSize.y < Size.y)
       ImGuiWindowFlags_AlwaysHorizontalScrollbar=1shl 15,  // Always show horizontal scrollbar (even if ContentSize.x < Size.x)
-      ImGuiWindowFlags_AlwaysUseWindowPadding = 1 shl 16   // Ensure child windows without border uses style.WindowPadding (ignored by default for non-bordered child windows, because more convenient)
+      ImGuiWindowFlags_AlwaysUseWindowPadding = 1 shl 16,  // Ensure child windows without border uses style.WindowPadding (ignored by default for non-bordered child windows, because more convenient)
+      ImGuiWindowFlags_ResizeFromAnySide      = 1 shl 17   // (WIP) Enable resize from any corners and borders. Your back-end needs to honor the different values of io.MouseCursor set by imgui.
+  );
+
+  // Flags for ImGui::InputText()
+  ImGuiInputTextFlags = longint;
+  ImGuiInputTextFlagsEnum = (
+      ImGuiInputTextFlags_CharsDecimal        = 1 shl 0,
+      ImGuiInputTextFlags_CharsHexadecimal    = 1 shl 1,
+      ImGuiInputTextFlags_CharsUppercase      = 1 shl 2,
+      ImGuiInputTextFlags_CharsNoBlank        = 1 shl 3,
+      ImGuiInputTextFlags_AutoSelectAll       = 1 shl 4,
+      ImGuiInputTextFlags_EnterReturnsTrue    = 1 shl 5,
+      ImGuiInputTextFlags_CallbackCompletion  = 1 shl 6,
+      ImGuiInputTextFlags_CallbackHistory     = 1 shl 7,
+      ImGuiInputTextFlags_CallbackAlways      = 1 shl 8,
+      ImGuiInputTextFlags_CallbackCharFilter  = 1 shl 9,
+      ImGuiInputTextFlags_AllowTabInput       = 1 shl 10,
+      ImGuiInputTextFlags_CtrlEnterForNewLine = 1 shl 11,
+      ImGuiInputTextFlags_NoHorizontalScroll  = 1 shl 12,
+      ImGuiInputTextFlags_AlwaysInsertMode    = 1 shl 13,
+      ImGuiInputTextFlags_ReadOnly            = 1 shl 14,
+      ImGuiInputTextFlags_Password            = 1 shl 15,
+      ImGuiInputTextFlags_NoUndoRedo          = 1 shl 16
   );
 
   // Flags for ImGui::TreeNodeEx(), ImGui::CollapsingHeader*()
@@ -83,7 +109,7 @@ type
   ImGuiTreeNodeFlagsEnum = (
       ImGuiTreeNodeFlags_Selected = 1 shl 0,
       ImGuiTreeNodeFlags_Framed = 1 shl 1,
-      ImGuiTreeNodeFlags_AllowOverlapMode = 1 shl 2,
+      ImGuiTreeNodeFlags_AllowItemOverlap = 1 shl 2,
       ImGuiTreeNodeFlags_NoTreePushOnOpen = 1 shl 3,
       ImGuiTreeNodeFlags_NoAutoOpenOnLog = 1 shl 4,
       ImGuiTreeNodeFlags_CollapsingHeader = (1 shl 1) or (1 shl 4), //Framed or NoAutoOpenOnLog
@@ -91,7 +117,60 @@ type
       ImGuiTreeNodeFlags_OpenOnDoubleClick = 1 shl 6,
       ImGuiTreeNodeFlags_OpenOnArrow = 1 shl 7,
       ImGuiTreeNodeFlags_Leaf = 1 shl 8,
-      ImGuiTreeNodeFlags_Bullet = 1 shl 9
+      ImGuiTreeNodeFlags_Bullet = 1 shl 9,
+      ImGuiTreeNodeFlags_FramePadding = 1 shl 10
+  );
+
+  ImGuiSelectableFlags = longint;
+  ImGuiSelectableFlagsEnum = (
+      ImGuiSelectableFlags_DontClosePopups = 1 shl 0,
+      ImGuiSelectableFlags_SpanAllColumns = 1 shl 1,
+      ImGuiSelectableFlags_AllowDoubleClick = 1 shl 2
+  );
+
+  ImGuiComboFlags = longint;
+  ImGuiComboFlagsEnum = (
+      ImGuiComboFlags_PopupAlignLeft = 1 shl 0,
+      ImGuiComboFlags_HeightSmall   = 1 shl 1,
+      ImGuiComboFlags_HeightRegular = 1 shl 2,
+      ImGuiComboFlags_HeightLarge   = 1 shl 3,
+      ImGuiComboFlags_HeightLargest = 1 shl 4,
+      ImGuiComboFlags_HeightMask_ = //ImGuiComboFlags_HeightSmall | ImGuiComboFlags_HeightRegular | ImGuiComboFlags_HeightLarge | ImGuiComboFlags_HeightLargest
+                                    (%11110)
+  );    
+  
+  ImGuiFocusedFlags = longint;
+  ImGuiFocusedFlagsEnum = (
+      ImGuiFocusedFlags_ChildWindows = 1 shl 0,
+      ImGuiFocusedFlags_RootWindow   = 1 shl 1,
+      ImGuiFocusedFlags_RootAndChildWindows = //ImGuiFocusedFlags_RootWindow | ImGuiFocusedFlags_ChildWindows
+                                              (%11)
+  );   
+  
+  ImGuiHoveredFlags = longint;
+  ImGuiHoveredFlagsEnum = (
+      ImGuiHoveredFlags_ChildWindows = 1 shl 0,
+      ImGuiHoveredFlags_RootWindow   = 1 shl 1,
+      ImGuiHoveredFlags_AllowWhenBlockedByPopup      = 1 shl 2,
+      ImGuiHoveredFlags_AllowWhenBlockedByActiveItem = 1 shl 4,
+      ImGuiHoveredFlags_AllowWhenOverlapped          = 1 shl 5,
+      ImGuiHoveredFlags_RectOnly = //ImGuiHoveredFlags_AllowWhenBlockedByPopup | ImGuiHoveredFlags_AllowWhenBlockedByActiveItem | ImGuiHoveredFlags_AllowWhenOverlapped,
+                                   (1 shl 2) or (1 shl 4) or (1 shl 5),
+      ImGuiHoveredFlags_RootAndChildWindows = //ImGuiHoveredFlags_RootWindow | ImGuiHoveredFlags_ChildWindows
+                                              (%11)
+  );
+  
+  ImGuiDragDropFlags = longint;
+  ImGuiDragDropFlagsEnum = (
+      ImGuiDragDropFlags_SourceNoPreviewTooltip   = 1 shl 0,
+      ImGuiDragDropFlags_SourceNoDisableHover     = 1 shl 1,
+      ImGuiDragDropFlags_SourceNoHoldToOpenOthers = 1 shl 2,
+      ImGuiDragDropFlags_SourceAllowNullID        = 1 shl 3,
+      ImGuiDragDropFlags_SourceExtern             = 1 shl 4,
+      ImGuiDragDropFlags_AcceptBeforeDelivery     = 1 shl 10,
+      ImGuiDragDropFlags_AcceptNoDrawDefaultRect  = 1 shl 11,
+      ImGuiDragDropFlags_AcceptPeekOnly = //ImGuiDragDropFlags_AcceptBeforeDelivery | ImGuiDragDropFlags_AcceptNoDrawDefaultRect
+                                          (1 shl 10) or (1 shl 11)   
   );
 
   ImGuiKey_ = (
@@ -121,7 +200,7 @@ type
       ImGuiCol_Text,
       ImGuiCol_TextDisabled,
       ImGuiCol_WindowBg,
-      ImGuiCol_ChildWindowBg,
+      ImGuiCol_ChildBg,
       ImGuiCol_PopupBg,
       ImGuiCol_Border,
       ImGuiCol_BorderShadow,
@@ -129,14 +208,13 @@ type
       ImGuiCol_FrameBgHovered,
       ImGuiCol_FrameBgActive,
       ImGuiCol_TitleBg,
-      ImGuiCol_TitleBgCollapsed,
       ImGuiCol_TitleBgActive,
+      ImGuiCol_TitleBgCollapsed,
       ImGuiCol_MenuBarBg,
       ImGuiCol_ScrollbarBg,
       ImGuiCol_ScrollbarGrab,
       ImGuiCol_ScrollbarGrabHovered,
       ImGuiCol_ScrollbarGrabActive,
-      ImGuiCol_ComboBg,
       ImGuiCol_CheckMark,
       ImGuiCol_SliderGrab,
       ImGuiCol_SliderGrabActive,
@@ -238,18 +316,43 @@ type
       ImGuiCond_FirstUseEver = 1 shl 2, // Set the variable if the window has no saved data (if doesn't exist in the .ini file)
       ImGuiCond_Appearing    = 1 shl 3  // Set the variable if the window is appearing after being hidden/inactive (or the first time)
   );
+   
+  ImDrawCornerFlags = longint;
+  ImDrawCornerFlagsEnum = (
+      ImDrawCornerFlags_TopLeft  = 1 shl 0,
+      ImDrawCornerFlags_TopRight = 1 shl 1,
+      ImDrawCornerFlags_BotLeft  = 1 shl 2,
+      ImDrawCornerFlags_BotRight = 1 shl 3,
+      {ImDrawCornerFlags_Top = ImDrawCornerFlags_TopLeft | ImDrawCornerFlags_TopRight,
+      ImDrawCornerFlags_Bot = ImDrawCornerFlags_BotLeft | ImDrawCornerFlags_BotRight,
+      ImDrawCornerFlags_Left = ImDrawCornerFlags_TopLeft | ImDrawCornerFlags_BotLeft,
+      ImDrawCornerFlags_Right = ImDrawCornerFlags_TopRight | ImDrawCornerFlags_BotRight,}
+      ImDrawCornerFlags_All = $F
+  );
+
+  ImDrawListFlags = longint;
+  ImDrawListFlagsEnum = (
+    ImDrawListFlags_AntiAliasedLines = 1 shl 0,
+    ImDrawListFlags_AntiAliasedFill  = 1 shl 1
+  );
+
 
   { Structs }
 
   ImGuiStyle = record
       Alpha : single;
       WindowPadding : ImVec2;
-      WindowMinSize : ImVec2;
       WindowRounding : single;
+      WindowBorderSize : single;
+      WindowMinSize : ImVec2;
       WindowTitleAlign : ImVec2;
-      ChildWindowRounding : single;
+      ChildRounding : single;
+      ChildBorderSize : single;
+      PopupRounding : single;
+      PopupBorderSize : single;
       FramePadding : ImVec2;
       FrameRounding : single;
+      FrameBorderSize : single;
       ItemSpacing : ImVec2;
       ItemInnerSpacing : ImVec2;
       TouchExtraPadding : ImVec2;
@@ -263,7 +366,7 @@ type
       DisplayWindowPadding : ImVec2;
       DisplaySafeAreaPadding : ImVec2;
       AntiAliasedLines : bool;
-      AntiAliasedShapes : bool;
+      AntiAliasedFill : bool;
       CurveTessellationTol : single;
       Colors: array[ImGuiCol_] of ImVec4;
   end;
@@ -300,7 +403,8 @@ type
       DisplayVisibleMax : ImVec2;
 
       // Advanced/subtle behaviors
-      OSXBehaviors : bool;
+      OptMacOSXBehaviors : bool;
+      OptCursorBlink : bool;
 
       // User Functions
       RenderDrawListsFn : procedure (data:PImDrawData);cdecl;
@@ -389,6 +493,12 @@ type
       TotalVtxCount,
       TotalIdxCount: integer;
   end;
+  
+  ImFontAtlas = record
+      TexID: ImTextureID;
+      TexDesiredWidth: Integer;
+      TexGlyphPadding: Integer;
+  end;
 
   ImGuiTextEditCallbackData = record
       //not translated
@@ -405,14 +515,8 @@ type
   ImFontConfig = record
       //not translated
   end;
-  ImFontAtlas = record
-      TexID: ImTextureID;
-      TexPixelsAlpha8: pbyte;
-      TexPixelsRGBA32: pInt32;
-      TexWidth: integer;
-      TexHeight: integer;
-      TexDesiredWidth: Integer;
-      TexGlyphPadding: Integer;
+  ImGuiPayload = record
+      //not translated
   end;
 
   ImGuiTextEditCallback = function(Data: PImGuiTextEditCallbackData): longint; cdecl;
@@ -448,7 +552,7 @@ public
   class procedure Shutdown;  inline;
   class procedure ShowUserGuide;  inline;
   class procedure ShowStyleEditor(ref: PImGuiStyle);  inline;
-  class procedure ShowTestWindow(p_open: Pbool = nil);  inline;
+  class procedure ShowDemoWindow(p_open: Pbool = nil);  inline;
   class procedure ShowMetricsWindow(p_open: Pbool = nil);  inline;
 
   { Window }
@@ -475,7 +579,6 @@ public
   class procedure SetNextWindowSize(size: ImVec2; cond: ImGuiCond = 0);  inline;
   class procedure SetNextWindowSizeConstraints(size_min: ImVec2; size_max: ImVec2; custom_callback: ImGuiSizeConstraintCallback; custom_callback_data: pointer);  inline;
   class procedure SetNextWindowContentSize(size: ImVec2);  inline;
-  class procedure SetNextWindowContentWidth(Width: single);  inline;
   class procedure SetNextWindowCollapsed(collapsed: bool; cond: ImGuiCond = 0);  inline;
   class procedure SetNextWindowFocus;  inline;
   class procedure SetWindowPos(pos: ImVec2; cond: ImGuiCond = 0);  inline;
@@ -494,7 +597,6 @@ public
   class procedure SetScrollY(scroll_y: single);  inline;
   class procedure SetScrollHere(center_y_ratio: single);  inline;
   class procedure SetScrollFromPosY(pos_y: single; center_y_ratio: single);  inline;
-  class procedure SetKeyboardFocusHere(offset: longint);  inline;
   class procedure SetStateStorage(tree: PImGuiStorage);  inline;
   class function  GetStateStorage(): PImGuiStorage;  inline;
 
@@ -543,10 +645,11 @@ public
   class function  GetCursorStartPos(): ImVec2;  inline;
   class function  GetCursorScreenPos(): ImVec2;  inline;
   class procedure SetCursorScreenPos(pos: ImVec2);  inline;
-  class procedure AlignFirstTextHeightToWidgets;  inline;
+  class procedure igAlignTextToFramePadding; inline;
   class function  GetTextLineHeight: single;  inline;
   class function  GetTextLineHeightWithSpacing: single;  inline;
-  class function  GetItemsLineHeightWithSpacing: single;  inline;
+  class function  GetFrameHeight: single;  inline;
+  class function  GetFrameHeightWithSpacing: single;  inline;
 
   { Columns }
   class procedure Columns(Count: longint; id: PChar; border: bool);  inline;
@@ -570,7 +673,7 @@ public
   class function  GetIdStrRange(str_begin: PChar; str_end: PChar): ImGuiID;  inline;
   class function  GetIdPtr(ptr_id: pointer): ImGuiID;  inline;
 
-  { Widgets }
+  { Widgets: Text }
   class procedure Text(const text_: string);
   class procedure Text(const Fmt: string; const Args: array of Const);
   //procedure igTextV(fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
@@ -592,6 +695,8 @@ public
   class procedure BulletText(const fmt: string; args: array of const); {inline;}
   class procedure BulletText(const fmt: string);  inline;
   //procedure igBulletTextV(fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
+
+  { Widgets: Main }
   class function  Button(_label: string; size: ImVec2): bool;
   class function  Button(_label: string): bool; //overload for default size (0,0)
   class function  SmallButton(_label: PChar): bool;  inline;
@@ -602,12 +707,13 @@ public
   class function  CheckboxFlags(_label: PChar; flags: Pdword; flags_value: dword): bool;  inline;
   class function  RadioButtonBool(_label: PChar; active: bool): bool;  inline;
   class function  RadioButton(_label: PChar; v: Plongint; v_button: longint): bool;  inline;
-  class function  Combo(_label: PChar; current_item: Plongint; items: PPchar; items_count: longint; height_in_items: longint): bool;  inline;
-  class function  Combo2(_label: PChar; current_item: Plongint; items_separated_by_zeros: PChar; height_in_items: longint): bool;  inline;
 
-  //todo : func type param
-  //function  igCombo3(_label:Pchar; current_item:Plongint; items_getter:function (data:pointer; idx:longint; out_text:PPchar):bool; data:pointer; items_count:longint;
-  //  height_in_items:longint):bool;cdecl;external ImguiLibName;
+  class function  BeginCombo(const _label, preview_value: string; flags: ImGuiComboFlags = 0): bool;  inline;
+  class procedure EndCombo;
+  class function  Combo(_label: string; current_item: Plongint; items: PPchar; items_count: longint; height_in_items: longint): bool;  inline;
+  class function  Combo2(_label: string; current_item: Plongint; items_separated_by_zeros: PChar; height_in_items: longint): bool;  inline;
+
+
   class function  ColorButton(desc_id: PChar; col: ImVec4; flags: ImGuiColorEditFlags; size: ImVec2): bool;  inline;
   class function  ColorEdit3(_label: PChar; col: TCol3; flags: ImGuiColorEditFlags = 0): bool;  inline;
   class function  ColorEdit4(_label: PChar; col: TCol4; flags: ImGuiColorEditFlags = 0): bool;  inline;
@@ -659,8 +765,8 @@ public
                                 v_min: longint = 0; v_max: longint = 0; display_format: PChar = '%.0f'; display_format_max: PChar = nil): bool;  inline;
 
   { Widgets: Input with Keyboard }
-  class function  InputText(_label: PChar; buf: PChar; buf_size: size_t; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback;   user_data: pointer): bool;  inline;
-  class function  InputTextMultiline(_label: PChar; buf: PChar; buf_size: size_t; size: ImVec2; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback;   user_data: pointer): bool;  inline;
+  class function  InputText(_label: PChar; buf: PChar; buf_size: size_t; flags: ImGuiInputTextFlags = 0; callback: ImGuiTextEditCallback = nil; user_data: pointer = nil): bool;  inline;
+  class function  InputTextMultiline(_label: PChar; buf: PChar; buf_size: size_t; size: ImVec2; flags: ImGuiInputTextFlags = 0; callback: ImGuiTextEditCallback = nil; user_data: pointer = nil): bool;  inline;
   class function  InputFloat(_label: PChar; v: Psingle; step: single; step_fast: single; decimal_precision: longint; extra_flags: ImGuiInputTextFlags): bool;    inline;
   class function  InputFloat2(_label: PChar; v: TFloat2; decimal_precision: longint; extra_flags: ImGuiInputTextFlags): bool;  inline;
   class function  InputFloat3(_label: PChar; v: TFloat3; decimal_precision: longint; extra_flags: ImGuiInputTextFlags): bool;  inline;
@@ -751,13 +857,24 @@ public
   class procedure LogText(const fmt: string; args: array of const);
   class procedure LogText(const fmt: string);
 
+  { Drag and Drop }
+
   { Clipping }
   class procedure PushClipRect(clip_rect_min: ImVec2; clip_rect_max: ImVec2; intersect_with_current_clip_rect: bool);  inline;
   class procedure PopClipRect;  inline;
 
+  { Styles }
+  class procedure StyleColorsClassic(dst: PImGuiStyle);  inline;
+  class procedure StyleColorsDark(dst: PImGuiStyle);  inline;
+  class procedure StyleColorsLight(dst: PImGuiStyle);  inline;
+
+  { Focus }
+  class procedure SetItemDefaultFocus();  inline;
+  class procedure SetKeyboardFocusHere(offset: integer = 0);  inline;
+
   { Utilities }
-  class function  IsItemHovered: bool;  inline;
-  class function  IsItemRectHovered: bool;  inline;
+  class function  IsItemHovered(flags: ImGuiHoveredFlags = 0): bool; inline;
+  class procedure SetNextWindowPos(pos: ImVec2; cond: ImGuiCond; const pivot: ImVec2); inline;
   class function  IsItemActive: bool;  inline;
   class function  IsItemClicked(mouse_button: longint = 0): bool;  inline;
   class function  IsItemVisible: bool;  inline;
@@ -767,11 +884,10 @@ public
   class procedure GetItemRectMax(pOut: PImVec2);  inline;
   class procedure GetItemRectSize(pOut: PImVec2);  inline;
   class procedure SetItemAllowOverlap;  inline;
-  class function  IsWindowHovered: bool;  inline;
-  class function  IsWindowFocused: bool;  inline;
-  class function  IsRootWindowFocused: bool;  inline;
-  class function  IsRootWindowOrAnyChildFocused: bool;  inline;
-  class function  IsRootWindowOrAnyChildHovered: bool;  inline;
+  class function  IsWindowFocused(flags: ImGuiHoveredFlags): bool; inline;
+  class function  IsWindowHovered(flags: ImGuiHoveredFlags): bool; inline;
+  class function  IsAnyWindowFocused: bool;  inline;
+  class function  IsAnyWindowHovered: bool;  inline;
   class function  IsRectVisible(const item_size: ImVec2): bool;  inline;
   class function  IsRectVisible(const rect_min, rect_max: PImVec2): bool;  inline;
 
@@ -792,24 +908,22 @@ public
 
   class function  GetKeyIndex(key: ImGuiKey): longint;  inline;
   class function  IsKeyDown(user_key_index: longint): bool; inline;
-  class function  IsKeyPressed(user_key_index: longint; _repeat: bool): bool; inline;
+  class function  IsKeyPressed(user_key_index: longint; _repeat: bool = true): bool; inline;
   class function  IsKeyReleased(user_key_index: longint): bool; inline;
   class function  IsMouseDown(_button: longint): bool;  inline;
-  class function  IsMouseClicked(_button: longint; _repeat: bool): bool;  inline;
+  class function  IsMouseClicked(_button: longint; _repeat: bool = false): bool;  inline;
   class function  IsMouseDoubleClicked(_button: longint): bool;  inline;
   class function  IsMouseReleased(_button: longint): bool;  inline;
-  class function  IsWindowRectHovered: bool;  inline;
-  class function  IsAnyWindowHovered: bool;  inline;
   class function  IsMouseHoveringRect(r_min: ImVec2; r_max: ImVec2; clip: bool = true): bool; inline;
-  class function  IsMouseDragging(_button: longint = 0; lock_threshold: single = - 1): bool; inline;
+  class function  IsMouseDragging(_button: longint = 0; lock_threshold: single = -1): bool; inline;
   class function  GetMousePos: ImVec2; inline;
   class function  GetMousePosOnOpeningCurrentPopup: ImVec2; inline;
-  class function  GetMouseDragDelta(_button: longint = 0; lock_threshold: single = - 1): ImVec2; inline;
+  class function  GetMouseDragDelta(_button: longint = 0; lock_threshold: single = -1): ImVec2; inline;
   class procedure ResetMouseDragDelta(_button: longint = 0); inline;
   class function  GetMouseCursor: ImGuiMouseCursor;  inline;
   class procedure SetMouseCursor(_type: ImGuiMouseCursor);  inline;
-  class procedure CaptureKeyboardFromApp(capture: bool);  inline;
-  class procedure CaptureMouseFromApp(capture: bool);  inline;
+  class procedure CaptureKeyboardFromApp(capture: bool = true);  inline;
+  class procedure CaptureMouseFromApp(capture: bool = true);  inline;
 
   { Helpers functions to access functions pointers in ImGui::GetIO() }
   class function  MemAlloc(sz: size_t): pointer;  inline;
@@ -901,11 +1015,15 @@ function  igGetStyle(): PImGuiStyle; cdecl; external ImguiLibName;
 function  igGetDrawData(): PImDrawData; cdecl; external ImguiLibName;
 procedure igNewFrame; cdecl; external ImguiLibName;
 procedure igRender; cdecl; external ImguiLibName;
+procedure igEndFrame; cdecl; external ImguiLibName;
 procedure igShutdown; cdecl; external ImguiLibName;
-procedure igShowUserGuide; cdecl; external ImguiLibName;
-procedure igShowStyleEditor(ref: PImGuiStyle); cdecl; external ImguiLibName;
-procedure igShowTestWindow(opened: Pbool); cdecl; external ImguiLibName;
+
+procedure igShowDemoWindow(opened: Pbool); cdecl; external ImguiLibName;
 procedure igShowMetricsWindow(opened: Pbool); cdecl; external ImguiLibName;
+procedure igShowStyleEditor(ref: PImGuiStyle); cdecl; external ImguiLibName;
+procedure igShowStyleSelector(const label_: Pchar); cdecl; external ImguiLibName;
+procedure igShowFontSelector(const label_: Pchar); cdecl; external ImguiLibName;
+procedure igShowUserGuide; cdecl; external ImguiLibName;
 
 { Window }
 function  igBegin(Name: PChar; p_open: Pbool = nil; flags: ImGuiWindowFlags = 0): bool; cdecl; external ImguiLibName;
@@ -924,15 +1042,15 @@ procedure igGetWindowPos(out_: PImVec2); cdecl; external ImguiLibName;
 procedure igGetWindowSize(out_: PImVec2); cdecl; external ImguiLibName;
 function  igGetWindowWidth: single; cdecl; external ImguiLibName;
 function  igGetWindowHeight: single; cdecl; external ImguiLibName;
+function  igIsWindowAppearing: bool; cdecl; external ImguiLibName;
 function  igIsWindowCollapsed: bool; cdecl; external ImguiLibName;
 procedure igSetWindowFontScale(scale: single); cdecl; external ImguiLibName;
 
-procedure igSetNextWindowPos(pos: ImVec2; cond: ImGuiCond); cdecl; external ImguiLibName;
+procedure igSetNextWindowPos(pos: ImVec2; cond: ImGuiCond; const pivot: ImVec2); cdecl; external ImguiLibName;
 procedure igSetNextWindowPosCenter(cond: ImGuiCond); cdecl; external ImguiLibName;
 procedure igSetNextWindowSize(size: ImVec2; cond: ImGuiCond); cdecl; external ImguiLibName;
 procedure igSetNextWindowSizeConstraints(size_min: ImVec2; size_max: ImVec2; custom_callback: ImGuiSizeConstraintCallback; custom_callback_data: pointer); cdecl; external ImguiLibName;
 procedure igSetNextWindowContentSize(size: ImVec2); cdecl; external ImguiLibName;
-procedure igSetNextWindowContentWidth(Width: single); cdecl; external ImguiLibName;
 procedure igSetNextWindowCollapsed(collapsed: bool; cond: ImGuiCond); cdecl; external ImguiLibName;
 procedure igSetNextWindowFocus; cdecl; external ImguiLibName;
 procedure igSetWindowPos(pos: ImVec2; cond: ImGuiCond); cdecl; external ImguiLibName;
@@ -952,7 +1070,6 @@ procedure igSetScrollX(scroll_x: single); cdecl; external ImguiLibName;
 procedure igSetScrollY(scroll_y: single); cdecl; external ImguiLibName;
 procedure igSetScrollHere(center_y_ratio: single); cdecl; external ImguiLibName;
 procedure igSetScrollFromPosY(pos_y: single; center_y_ratio: single); cdecl; external ImguiLibName;
-procedure igSetKeyboardFocusHere(offset: longint); cdecl; external ImguiLibName;
 procedure igSetStateStorage(tree: PImGuiStorage); cdecl; external ImguiLibName;
 function  igGetStateStorage(): PImGuiStorage; cdecl; external ImguiLibName;
 
@@ -982,7 +1099,7 @@ procedure igPopAllowKeyboardFocus; cdecl; external ImguiLibName;
 procedure igPushButtonRepeat(_repeat: bool); cdecl; external ImguiLibName;
 procedure igPopButtonRepeat; cdecl; external ImguiLibName;
 
-{ Layout }
+{ Cursor / Layout }
 procedure igSeparator; cdecl; external ImguiLibName;
 procedure igSameLine(pos_x: single; spacing_w: single); cdecl; external ImguiLibName;
 procedure igNewLine; cdecl; external ImguiLibName;
@@ -1001,10 +1118,11 @@ procedure igSetCursorPosY(y: single); cdecl; external ImguiLibName;
 procedure igGetCursorStartPos(pOut: PImVec2); cdecl; external ImguiLibName;
 procedure igGetCursorScreenPos(pOut: PImVec2); cdecl; external ImguiLibName;
 procedure igSetCursorScreenPos(pos: ImVec2); cdecl; external ImguiLibName;
-procedure igAlignFirstTextHeightToWidgets; cdecl; external ImguiLibName;
+procedure igAlignTextToFramePadding; cdecl; external ImguiLibName;
 function  igGetTextLineHeight: single; cdecl; external ImguiLibName;
 function  igGetTextLineHeightWithSpacing: single; cdecl; external ImguiLibName;
-function  igGetItemsLineHeightWithSpacing: single; cdecl; external ImguiLibName;
+function  igGetFrameHeight: single; cdecl; external ImguiLibName;
+function  igGetFrameHeightWithSpacing: single; cdecl; external ImguiLibName;
 
 { Columns }
 procedure igColumns(Count: longint; id: PChar; border: bool); cdecl; external ImguiLibName;
@@ -1019,36 +1137,38 @@ function  igGetColumnsCount: longint; cdecl; external ImguiLibName;
 { ID scopes }
 { If you are creating widgets in a loop you most likely want to push a unique identifier so ImGui can differentiate them }
 { You can also use "##extra" within your widget name to distinguish them from each others (see 'Programmer Guide') }
-procedure igPushIdStr(str_id: PChar); cdecl; external ImguiLibName;
-procedure igPushIdStrRange(str_begin: PChar; str_end: PChar); cdecl; external ImguiLibName;
-procedure igPushIdPtr(ptr_id: pointer); cdecl; external ImguiLibName;
-procedure igPushIdInt(int_id: longint); cdecl; external ImguiLibName;
-procedure igPopId; cdecl; external ImguiLibName;
-function  igGetIdStr(str_id: PChar): ImGuiID; cdecl; external ImguiLibName;
-function  igGetIdStrRange(str_begin: PChar; str_end: PChar): ImGuiID; cdecl; external ImguiLibName;
-function  igGetIdPtr(ptr_id: pointer): ImGuiID; cdecl; external ImguiLibName;
+procedure igPushIDStr(str_id: PChar); cdecl; external ImguiLibName;
+procedure igPushIDStrRange(str_begin: PChar; str_end: PChar); cdecl; external ImguiLibName;
+procedure igPushIDPtr(ptr_id: pointer); cdecl; external ImguiLibName;
+procedure igPushIDInt(int_id: longint); cdecl; external ImguiLibName;
+procedure igPopID; cdecl; external ImguiLibName;
+function  igGetIDStr(str_id: PChar): ImGuiID; cdecl; external ImguiLibName;
+function  igGetIDStrRange(str_begin: PChar; str_end: PChar): ImGuiID; cdecl; external ImguiLibName;
+function  igGetIDPtr(ptr_id: pointer): ImGuiID; cdecl; external ImguiLibName;
 
-{ Widgets }
+{ Widgets: Text }
+procedure igTextUnformatted(text: PChar; text_end: PChar); cdecl; external ImguiLibName;
 procedure igText(fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igText(fmt: PChar); cdecl; external ImguiLibName;
-//procedure igTextV(fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
+// igTextV
 procedure igTextColored(col: ImVec4; fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igTextColored(col: ImVec4; fmt: PChar); cdecl; external ImguiLibName;
-//procedure igTextColoredV(col:ImVec4; fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
+// igTextColoredV
 procedure igTextDisabled(fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igTextDisabled(fmt: PChar); cdecl; external ImguiLibName;
-//procedure igTextDisabledV(fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
+// igTextDisabledV
 procedure igTextWrapped(fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igTextWrapped(fmt: PChar); cdecl; external ImguiLibName;
-//procedure igTextWrappedV(fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
-procedure igTextUnformatted(text: PChar; text_end: PChar); cdecl; external ImguiLibName;
+// igTextWrappedV
 procedure igLabelText(_label: PChar; fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igLabelText(_label: PChar; fmt: PChar); cdecl; external ImguiLibName;
-//procedure igLabelTextV(_label:Pchar; fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
-procedure igBullet; cdecl; external ImguiLibName;
+// igLabelTextV
 procedure igBulletText(fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igBulletText(fmt: PChar); cdecl; external ImguiLibName;
-//procedure igBulletTextV(fmt:Pchar; args:va_list);cdecl;external ImguiLibName;
+procedure igBullet; cdecl; external ImguiLibName;
+// igBulletTextV
+
+{ Widgets: Main }
 function  igButton(_label: PChar; size: ImVec2): bool; cdecl; external ImguiLibName;
 function  igSmallButton(_label: PChar): bool; cdecl; external ImguiLibName;
 function  igInvisibleButton(str_id: PChar; size: ImVec2): bool; cdecl; external ImguiLibName;
@@ -1059,12 +1179,23 @@ function  igCheckbox(_label: PChar; v: Pbool): bool; cdecl; external ImguiLibNam
 function  igCheckboxFlags(_label: PChar; flags: Pdword; flags_value: dword): bool; cdecl; external ImguiLibName;
 function  igRadioButtonBool(_label: PChar; active: bool): bool; cdecl; external ImguiLibName;
 function  igRadioButton(_label: PChar; v: Plongint; v_button: longint): bool; cdecl; external ImguiLibName;
+procedure igPlotLines(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single;
+  scale_max: single; graph_size: ImVec2; stride: longint); cdecl; external ImguiLibName;
+procedure igPlotHistogram(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single;
+  scale_max: single; graph_size: ImVec2; stride: longint); cdecl; external ImguiLibName;
+procedure igProgressBar(fraction: single; size_arg: PImVec2; overlay: PChar); cdecl; external ImguiLibName;
+//TODO : func type
+//procedure igPlotLines2(_label:Pchar; values_getter:function (data:pointer; idx:longint):single; data:pointer; values_count:longint; values_offset:longint;
+//            overlay_text:Pchar; scale_min:single; scale_max:single; graph_size:ImVec2);cdecl;external ImguiLibName;
+//procedure igPlotHistogram2(_label:Pchar; values_getter:function (data:pointer; idx:longint):single; data:pointer; values_count:longint; values_offset:longint;
+//            overlay_text:Pchar; scale_min:single; scale_max:single; graph_size:ImVec2);cdecl;external ImguiLibName;
+
+{ Widgets: Combo Box }
+function  igBeginCombo(const _label: PChar; const preview_value: PChar; flags: ImGuiComboFlags = 0): bool; cdecl; external ImguiLibName;
+procedure igEndCombo; cdecl; external ImguiLibName;
 function  igCombo(_label: PChar; current_item: Plongint; items: PPchar; items_count: longint; height_in_items: longint): bool; cdecl; external ImguiLibName;
 function  igCombo2(_label: PChar; current_item: Plongint; items_separated_by_zeros: PChar; height_in_items: longint): bool; cdecl; external ImguiLibName;
 
-//todo : func type param
-//function  igCombo3(_label:Pchar; current_item:Plongint; items_getter:function (data:pointer; idx:longint; out_text:PPchar):bool; data:pointer; items_count:longint;
-//  height_in_items:longint):bool;cdecl;external ImguiLibName;
 function  igColorButton(desc_id: PChar; col: ImVec4; flags: ImGuiColorEditFlags; size: ImVec2): bool; cdecl; external ImguiLibName;
 function  igColorEdit3(_label: PChar; col: TCol3; flags: ImGuiColorEditFlags = 0): bool; cdecl; external ImguiLibName;
 function  igColorEdit4(_label: PChar; col: TCol4; flags: ImGuiColorEditFlags = 0): bool; cdecl; external ImguiLibName;
@@ -1072,34 +1203,7 @@ function  igColorPicker3(_label: PChar; col: TCol3; flags: ImGuiColorEditFlags =
 function  igColorPicker4(_label: PChar; col: TCol4; flags: ImGuiColorEditFlags = 0): bool; cdecl; external ImguiLibName;
 procedure igSetColorEditOptions(flags: ImGuiColorEditFlags); cdecl; external ImguiLibName;
 
-procedure igPlotLines(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single;
-  scale_max: single; graph_size: ImVec2; stride: longint); cdecl; external ImguiLibName;
-
-//TODO : func type
-//procedure igPlotLines2(_label:Pchar; values_getter:function (data:pointer; idx:longint):single; data:pointer; values_count:longint; values_offset:longint;
-//            overlay_text:Pchar; scale_min:single; scale_max:single; graph_size:ImVec2);cdecl;external ImguiLibName;
-procedure igPlotHistogram(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single;
-  scale_max: single; graph_size: ImVec2; stride: longint); cdecl; external ImguiLibName;
-
-//TODO : func type
-//procedure igPlotHistogram2(_label:Pchar; values_getter:function (data:pointer; idx:longint):single; data:pointer; values_count:longint; values_offset:longint;
-//            overlay_text:Pchar; scale_min:single; scale_max:single; graph_size:ImVec2);cdecl;external ImguiLibName;
-procedure igProgressBar(fraction: single; size_arg: PImVec2; overlay: PChar); cdecl; external ImguiLibName;
-
-{ Widgets: Sliders (tip: ctrl+click on a slider to input text) }
-function  igSliderFloat(_label: PChar; v: Psingle; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
-function  igSliderFloat2(_label: PChar; v: TFloat2; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
-function  igSliderFloat3(_label: PChar; v: TFloat3; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
-function  igSliderFloat4(_label: PChar; v: TFloat4; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
-function  igSliderAngle(_label: PChar; v_rad: Psingle; v_degrees_min: single; v_degrees_max: single): bool; cdecl; external ImguiLibName;
-function  igSliderInt(_label: PChar; v: Plongint; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
-function  igSliderInt2(_label: PChar; v: TLongInt2; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
-function  igSliderInt3(_label: PChar; v: TLongInt3; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
-function  igSliderInt4(_label: PChar; v: TLongInt4; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
-function  igVSliderFloat(_label: PChar; size: ImVec2; v: Psingle; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
-function  igVSliderInt(_label: PChar; size: ImVec2; v: Plongint; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
-
-{ Widgets: Drags (tip: ctrl+click on a drag box to input text) }
+{ Widgets: Drags (tip: ctrl+click on a drag box to input with keyboard. manually input values aren't clamped, can go off-bounds) }
 // For all the Float2/Float3/Float4/Int2/Int3/Int4 versions of every functions, remember than a 'float v[3]' function argument is the same as 'float* v'. You can pass address of your first element out of a contiguous set, e.g. &myvector.x
 { If v_max >= v_max we have no bound }
 function  igDragFloat(_label: PChar; v: Psingle; v_speed: single; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
@@ -1116,7 +1220,7 @@ function  igDragInt4(_label: PChar; v: TLongInt4; v_speed: single; v_min: longin
 function  igDragIntRange2(_label: PChar; v_current_min: Plongint; v_current_max: Plongint; v_speed: single; v_min: longint; v_max: longint;
   display_format: PChar; display_format_max: PChar): bool; cdecl; external ImguiLibName;
 
-{ Widgets: Input }
+{ Widgets: Input with Keyboard }
 function  igInputText(_label: PChar; buf: PChar; buf_size: size_t; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback;
   user_data: pointer): bool; cdecl; external ImguiLibName;
 function  igInputTextMultiline(_label: PChar; buf: PChar; buf_size: size_t; size: ImVec2; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback;
@@ -1130,6 +1234,19 @@ function  igInputInt(_label: PChar; v: Plongint; step: longint; step_fast: longi
 function  igInputInt2(_label: PChar; v: TLongInt2; extra_flags: ImGuiInputTextFlags): bool; cdecl; external ImguiLibName;
 function  igInputInt3(_label: PChar; v: TLongInt3; extra_flags: ImGuiInputTextFlags): bool; cdecl; external ImguiLibName;
 function  igInputInt4(_label: PChar; v: TLongInt4; extra_flags: ImGuiInputTextFlags): bool; cdecl; external ImguiLibName;
+
+{ Widgets: Sliders (tip: ctrl+click on a slider to input text) }
+function  igSliderFloat(_label: PChar; v: Psingle; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
+function  igSliderFloat2(_label: PChar; v: TFloat2; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
+function  igSliderFloat3(_label: PChar; v: TFloat3; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
+function  igSliderFloat4(_label: PChar; v: TFloat4; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
+function  igSliderAngle(_label: PChar; v_rad: Psingle; v_degrees_min: single; v_degrees_max: single): bool; cdecl; external ImguiLibName;
+function  igSliderInt(_label: PChar; v: Plongint; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
+function  igSliderInt2(_label: PChar; v: TLongInt2; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
+function  igSliderInt3(_label: PChar; v: TLongInt3; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
+function  igSliderInt4(_label: PChar; v: TLongInt4; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
+function  igVSliderFloat(_label: PChar; size: ImVec2; v: Psingle; v_min: single; v_max: single; display_format: PChar; power: single): bool; cdecl; external ImguiLibName;
+function  igVSliderInt(_label: PChar; size: ImVec2; v: Plongint; v_min: longint; v_max: longint; display_format: PChar): bool; cdecl; external ImguiLibName;
 
 { Widgets: Trees }
 function  igTreeNode(_label: PChar): bool; cdecl; external ImguiLibName;
@@ -1214,13 +1331,23 @@ procedure igLogButtons; cdecl; external ImguiLibName;
 procedure igLogText(fmt: PChar; args: array of const); cdecl; external ImguiLibName;
 procedure igLogText(fmt: PChar); cdecl; external ImguiLibName;
 
+{ Drag and Drop - not translated }
+
 { Clipping }
 procedure igPushClipRect(clip_rect_min: ImVec2; clip_rect_max: ImVec2; intersect_with_current_clip_rect: bool); cdecl; external ImguiLibName;
 procedure igPopClipRect; cdecl; external ImguiLibName;
 
+{ Styles }
+procedure igStyleColorsClassic(dst: PImGuiStyle); cdecl; external ImguiLibName;
+procedure igStyleColorsDark(dst: PImGuiStyle); cdecl; external ImguiLibName;
+procedure igStyleColorsLight(dst: PImGuiStyle); cdecl; external ImguiLibName;
+
+{ Focus }
+procedure igSetItemDefaultFocus(); cdecl; external ImguiLibName;
+procedure igSetKeyboardFocusHere(offset: integer = 0); cdecl; external ImguiLibName;
+
 { Utilities }
-function  igIsItemHovered: bool; cdecl; external ImguiLibName;
-function  igIsItemRectHovered: bool; cdecl; external ImguiLibName;
+function  igIsItemHovered(flags: ImGuiHoveredFlags): bool; cdecl; external ImguiLibName;
 function  igIsItemActive: bool; cdecl; external ImguiLibName;
 function  igIsItemClicked(mouse_button: longint): bool; cdecl; external ImguiLibName;
 function  igIsItemVisible: bool; cdecl; external ImguiLibName;
@@ -1230,11 +1357,10 @@ procedure igGetItemRectMin(pOut: PImVec2); cdecl; external ImguiLibName;
 procedure igGetItemRectMax(pOut: PImVec2); cdecl; external ImguiLibName;
 procedure igGetItemRectSize(pOut: PImVec2); cdecl; external ImguiLibName;
 procedure igSetItemAllowOverlap; cdecl; external ImguiLibName;
-function  igIsWindowHovered: bool; cdecl; external ImguiLibName;
-function  igIsWindowFocused: bool; cdecl; external ImguiLibName;
-function  igIsRootWindowFocused: bool; cdecl; external ImguiLibName;
-function  igIsRootWindowOrAnyChildFocused: bool; cdecl; external ImguiLibName;
-function  igIsRootWindowOrAnyChildHovered: bool; cdecl; external ImguiLibName;
+function  igIsWindowFocused(flags: ImGuiHoveredFlags = 0): bool; cdecl; external ImguiLibName;
+function  igIsWindowHovered(flags: ImGuiHoveredFlags = 0): bool; cdecl; external ImguiLibName;
+function  igIsAnyWindowFocused: bool; cdecl; external ImguiLibName;
+function  igIsAnyWindowHovered: bool; cdecl; external ImguiLibName;
 function  igIsRectVisible(const item_size: ImVec2): bool; cdecl; external ImguiLibName;
 function  igIsRectVisible2(const rect_min, rect_max: PImVec2): bool; cdecl; external ImguiLibName;
 
@@ -1253,18 +1379,19 @@ function  igColorConvertFloat4ToU32(in_: ImVec4): ImU32; cdecl; external ImguiLi
 procedure igColorConvertRGBtoHSV(r: single; g: single; b: single; out_h: Psingle; out_s: Psingle; out_v: Psingle); cdecl; external ImguiLibName;
 procedure igColorConvertHSVtoRGB(h: single; s: single; v: single; out_r: Psingle; out_g: Psingle; out_b: Psingle); cdecl; external ImguiLibName;
 
+{ Inputs }
 function  igGetKeyIndex(key: ImGuiKey): longint; cdecl; external ImguiLibName;
 function  igIsKeyDown(user_key_index: longint): bool; cdecl; external ImguiLibName;
 function  igIsKeyPressed(user_key_index: longint; _repeat: bool): bool; cdecl; external ImguiLibName;
 function  igIsKeyReleased(user_key_index: longint): bool; cdecl; external ImguiLibName;
+function  igGetKeyPressedAmount(key_index: longint; repeat_delay: single; rate: single): integer; cdecl; external ImguiLibName;
 function  igIsMouseDown(button: longint): bool; cdecl; external ImguiLibName;
 function  igIsMouseClicked(button: longint; _repeat: bool): bool; cdecl; external ImguiLibName;
 function  igIsMouseDoubleClicked(button: longint): bool; cdecl; external ImguiLibName;
 function  igIsMouseReleased(button: longint): bool; cdecl; external ImguiLibName;
-function  igIsWindowRectHovered: bool; cdecl; external ImguiLibName;
-function  igIsAnyWindowHovered: bool; cdecl; external ImguiLibName;
 function  igIsMouseHoveringRect(r_min: ImVec2; r_max: ImVec2; clip: bool): bool; cdecl; external ImguiLibName;
 function  igIsMouseDragging(button: longint; lock_threshold: single): bool; cdecl; external ImguiLibName;
+function  igIsMousePosValid(const mouse_pos: PImVec2): bool; cdecl; external ImguiLibName;
 procedure igGetMousePos(pOut: PImVec2); cdecl; external ImguiLibName;
 procedure igGetMousePosOnOpeningCurrentPopup(pOut: PImVec2); cdecl; external ImguiLibName;
 procedure igGetMouseDragDelta(pOut: PImVec2; button: longint; lock_threshold: single); cdecl; external ImguiLibName;
@@ -1287,29 +1414,7 @@ procedure igSetCurrentContext(ctx: PImGuiContext); cdecl; external ImguiLibName;
 
 procedure ImFontConfig_DefaultConstructor(config: PImFontConfig); cdecl; external ImguiLibName;
 
-procedure ImFontAtlas_GetTexDataAsRGBA32(atlas: PImFontAtlas; out_pixels: PPByte; out_width, out_height: PInteger; out_bytes_per_pixel: PInteger = nil); cdecl; external ImguiLibName;
-procedure ImFontAtlas_GetTexDataAsAlpha8(atlas: PImFontAtlas; out_pixels: PPByte; out_width, out_height: PInteger; out_bytes_per_pixel: PInteger = nil); cdecl; external ImguiLibName;
-procedure ImFontAtlas_SetTexID(atlas: PImFontAtlas; id: ImTextureID); cdecl; external ImguiLibName;
-
-function  ImFontAtlas_AddFontDefault(atlas: PImFontAtlas; config: PImFontConfig = nil): PImFont; cdecl; external ImguiLibName;
-function  ImFontAtlas_AddFont(atlas: PImFontAtlas; const font_cfg: PImFontConfig): PImFont; cdecl; external ImguiLibName;
-function  ImFontAtlas_AddFontFromFileTTF(atlas: PImFontAtlas; const filename: PChar; size_pixels: single; const font_cfg: PImFontConfig; const glyph_ranges: PImWchar): PImFont; cdecl; external ImguiLibName;
-{todo
-function  ImFontAtlas_AddFontFromMemoryTTF(struct ImFontAtlas* atlas, void* ttf_data, int ttf_size, float size_pixels, CONST struct ImFontConfig* font_cfg, CONST ImWchar* glyph_ranges): PImFont;
-function  ImFontAtlas_AddFontFromMemoryCompressedTTF(struct ImFontAtlas* atlas, CONST void* compressed_ttf_data, int compressed_ttf_size, float size_pixels, CONST struct ImFontConfig* font_cfg, CONST ImWchar* glyph_ranges): PImFont;
-function  ImFontAtlas_AddFontFromMemoryCompressedBase85TTF(struct ImFontAtlas* atlas, CONST char* compressed_ttf_data_base85, float size_pixels, CONST struct ImFontConfig* font_cfg, CONST ImWchar* glyph_ranges): PImFont;
-}
-
-procedure ImFontAtlas_ClearTexData(atlas: PImFontAtlas); cdecl; external ImguiLibName;
-procedure ImFontAtlas_Clear(atlas: PImFontAtlas); cdecl; external ImguiLibName;
-
-function ImFontAtlas_GetGlyphRangesDefault(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
-function ImFontAtlas_GetGlyphRangesKorean(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
-function ImFontAtlas_GetGlyphRangesJapanese(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
-function ImFontAtlas_GetGlyphRangesChinese(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
-function ImFontAtlas_GetGlyphRangesCyrillic(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
-function ImFontAtlas_GetGlyphRangesThai(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
-
+{ ImGuiIO }
 procedure ImGuiIO_AddInputCharacter(c: word); cdecl; external ImguiLibName;
 procedure ImGuiIO_AddInputCharactersUTF8(utf8_chars: pchar); cdecl; external ImguiLibName;
 procedure ImGuiIO_ClearInputCharacters(); cdecl; external ImguiLibName;
@@ -1393,6 +1498,28 @@ procedure ImDrawList_UpdateClipRect(list: PImDrawList); cdecl; external ImguiLib
 procedure ImDrawList_UpdateTextureID(list: PImDrawList); cdecl; external ImguiLibName;
 
 
+{ ImFontAtlas }
+procedure ImFontAtlas_GetTexDataAsRGBA32(atlas: PImFontAtlas; out_pixels: PPByte; out_width, out_height: PInteger; out_bytes_per_pixel: PInteger = nil); cdecl; external ImguiLibName;
+procedure ImFontAtlas_GetTexDataAsAlpha8(atlas: PImFontAtlas; out_pixels: PPByte; out_width, out_height: PInteger; out_bytes_per_pixel: PInteger = nil); cdecl; external ImguiLibName;
+procedure ImFontAtlas_SetTexID(atlas: PImFontAtlas; id: ImTextureID); cdecl; external ImguiLibName;
+function  ImFontAtlas_AddFontDefault(atlas: PImFontAtlas; config: PImFontConfig = nil): PImFont; cdecl; external ImguiLibName;
+function  ImFontAtlas_AddFont(atlas: PImFontAtlas; const font_cfg: PImFontConfig): PImFont; cdecl; external ImguiLibName;
+function  ImFontAtlas_AddFontFromFileTTF(atlas: PImFontAtlas; const filename: PChar; size_pixels: single; const font_cfg: PImFontConfig; const glyph_ranges: PImWchar): PImFont; cdecl; external ImguiLibName;
+{todo
+function  ImFontAtlas_AddFontFromMemoryTTF(struct ImFontAtlas* atlas, void* ttf_data, int ttf_size, float size_pixels, CONST struct ImFontConfig* font_cfg, CONST ImWchar* glyph_ranges): PImFont;
+function  ImFontAtlas_AddFontFromMemoryCompressedTTF(struct ImFontAtlas* atlas, CONST void* compressed_ttf_data, int compressed_ttf_size, float size_pixels, CONST struct ImFontConfig* font_cfg, CONST ImWchar* glyph_ranges): PImFont;
+function  ImFontAtlas_AddFontFromMemoryCompressedBase85TTF(struct ImFontAtlas* atlas, CONST char* compressed_ttf_data_base85, float size_pixels, CONST struct ImFontConfig* font_cfg, CONST ImWchar* glyph_ranges): PImFont;
+}
+procedure ImFontAtlas_ClearTexData(atlas: PImFontAtlas); cdecl; external ImguiLibName;
+procedure ImFontAtlas_Clear(atlas: PImFontAtlas); cdecl; external ImguiLibName;
+function ImFontAtlas_GetGlyphRangesDefault(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
+function ImFontAtlas_GetGlyphRangesKorean(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
+function ImFontAtlas_GetGlyphRangesJapanese(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
+function ImFontAtlas_GetGlyphRangesChinese(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
+function ImFontAtlas_GetGlyphRangesCyrillic(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
+function ImFontAtlas_GetGlyphRangesThai(atlas: PImFontAtlas): PImWchar; cdecl; external ImguiLibName;
+
+
 implementation
 
 function ImVec2Init(const x, y: single): Imvec2;
@@ -1433,7 +1560,7 @@ class procedure ImGui.Render; begin igRender end;
 class procedure ImGui.Shutdown; begin igShutdown end;
 class procedure ImGui.ShowUserGuide; begin igShowUserGuide end;
 class procedure ImGui.ShowStyleEditor(ref: PImGuiStyle); begin igShowStyleEditor(ref) end;
-class procedure ImGui.ShowTestWindow(p_open: Pbool); begin igShowTestWindow(p_open) end;
+class procedure ImGui.ShowDemoWindow(p_open: Pbool); begin igShowDemoWindow(p_open) end;
 class procedure ImGui.ShowMetricsWindow(p_open: Pbool); begin igShowMetricsWindow(p_open) end;
 
 class function ImGui.Begin_(name: string; p_open: Pbool; flags: ImGuiWindowFlags): Boolean;
@@ -1441,7 +1568,7 @@ class function ImGui.Begin_(name: string; p_open: Pbool; flags: ImGuiWindowFlags
 class procedure ImGui.End_;
     begin igEnd end;
 class function ImGui.BeginChild(str_id: string; size: ImVec2; border: bool; extra_flags: ImGuiWindowFlags): bool;
-    begin result := BeginChild(PChar(str_id), size, border, extra_flags); end;
+    begin result := igBeginChild(PChar(str_id), size, border, extra_flags); end;
 class function ImGui.BeginChildEx(id: ImGuiID; size: ImVec2; border: bool; extra_flags: ImGuiWindowFlags): bool;
     begin result := igBeginChildEx(id, size, border, extra_flags) end;
 class procedure ImGui.EndChild;
@@ -1473,7 +1600,9 @@ class function ImGui.IsWindowCollapsed: bool;
 class procedure ImGui.SetWindowFontScale(scale: single);
     begin igSetWindowFontScale(scale) end;
 class procedure ImGui.SetNextWindowPos(pos: ImVec2; cond: ImGuiCond = 0);
-    begin igSetNextWindowPos(pos, cond) end;
+    begin igSetNextWindowPos(pos, cond, ImVec2Zero) end;
+class procedure ImGui.SetNextWindowPos(pos: ImVec2; cond: ImGuiCond; const pivot: ImVec2);
+    begin igSetNextWindowPos(pos, cond, pivot) end;
 class procedure ImGui.SetNextWindowPosCenter(cond: ImGuiCond = 0);
     begin igSetNextWindowPosCenter(cond) end;
 class procedure ImGui.SetNextWindowSize(size: ImVec2; cond: ImGuiCond = 0);
@@ -1482,8 +1611,6 @@ class procedure ImGui.SetNextWindowSizeConstraints(size_min: ImVec2; size_max: I
     begin igSetNextWindowSizeConstraints(size_min, size_max, custom_callback, custom_callback_data) end;
 class procedure ImGui.SetNextWindowContentSize(size: ImVec2);
     begin igSetNextWindowContentSize(size) end;
-class procedure ImGui.SetNextWindowContentWidth(Width: single);
-    begin igSetNextWindowContentWidth(Width) end;
 class procedure ImGui.SetNextWindowCollapsed(collapsed: bool; cond: ImGuiCond = 0);
     begin igSetNextWindowCollapsed(collapsed, cond) end;
 class procedure ImGui.SetNextWindowFocus;
@@ -1520,8 +1647,6 @@ class procedure ImGui.SetScrollHere(center_y_ratio: single);
     begin igSetScrollHere(center_y_ratio) end;
 class procedure ImGui.SetScrollFromPosY(pos_y: single; center_y_ratio: single);
     begin igSetScrollFromPosY(pos_y, center_y_ratio) end;
-class procedure ImGui.SetKeyboardFocusHere(offset: longint);
-    begin igSetKeyboardFocusHere(offset) end;
 class procedure ImGui.SetStateStorage(tree: PImGuiStorage);
     begin igSetStateStorage(tree) end;
 class function ImGui.GetStateStorage(): PImGuiStorage;
@@ -1612,14 +1737,16 @@ class function ImGui.GetCursorScreenPos: ImVec2;
     begin igGetCursorScreenPos(@result) end;
 class procedure ImGui.SetCursorScreenPos(pos: ImVec2);
     begin igSetCursorScreenPos(pos) end;
-class procedure ImGui.AlignFirstTextHeightToWidgets;
-    begin igAlignFirstTextHeightToWidgets end;
+class procedure ImGui.igAlignTextToFramePadding;
+    begin igAlignTextToFramePadding end;
 class function ImGui.GetTextLineHeight: single;
     begin result := igGetTextLineHeight end;
 class function ImGui.GetTextLineHeightWithSpacing: single;
     begin result := igGetTextLineHeightWithSpacing end;
-class function ImGui.GetItemsLineHeightWithSpacing: single;
-    begin result := igGetItemsLineHeightWithSpacing end;
+class function ImGui.GetFrameHeight: single;
+    begin result := igGetFrameHeight end;
+class function ImGui.GetFrameHeightWithSpacing: single;
+    begin result := igGetFrameHeightWithSpacing end;
 
 { Columns }
 class procedure ImGui.Columns(Count: longint; id: PChar; border: bool);
@@ -1659,7 +1786,7 @@ class function ImGui.GetIdStrRange(str_begin: PChar; str_end: PChar): ImGuiID;
 class function ImGui.GetIdPtr(ptr_id: pointer): ImGuiID;
     begin result := igGetIdPtr(ptr_id) end;
 
-{ Widgets }
+{ Widgets: Text }
 class procedure ImGui.Text(const text_: string);
     begin igText(Pchar(text_)) end;
 class procedure ImGui.Text(const Fmt: string; const Args: array of const);
@@ -1690,6 +1817,8 @@ class procedure ImGui.BulletText(const fmt: string; args: array of const);
     begin BulletText(Format(fmt, args)) end;
 class procedure ImGui.BulletText(const fmt: string);
     begin igBulletText(pchar(fmt)) end;
+
+{ Widgets: Main }
 class function ImGui.Button(_label: string; size: ImVec2): bool;
      begin result := igButton(pchar(_label), size) end;
 class function ImGui.Button(_label: string): bool;
@@ -1710,10 +1839,21 @@ class function ImGui.RadioButtonBool(_label: PChar; active: bool): bool;
     begin result := igRadioButtonBool(_label, active) end;
 class function ImGui.RadioButton(_label: PChar; v: Plongint; v_button: longint): bool;
     begin result := igRadioButton(_label, v, v_button) end;
-class function ImGui.Combo(_label: PChar; current_item: Plongint; items: PPchar; items_count: longint; height_in_items: longint): bool;
-    begin result := igCombo(_label, current_item, items, items_count, height_in_items) end;
-class function ImGui.Combo2(_label: PChar; current_item: Plongint; items_separated_by_zeros: PChar; height_in_items: longint): bool;
-    begin result := igCombo2(_label, current_item, items_separated_by_zeros, height_in_items) end;
+class procedure ImGui.PlotLines(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single; scale_max: single; graph_size: ImVec2; stride: longint);
+    begin igPlotLines(_label, values, values_count, values_offset, overlay_text, scale_min, scale_max, graph_size, stride) end;
+class procedure ImGui.PlotHistogram(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single;   scale_max: single; graph_size: ImVec2; stride: longint);
+    begin igPlotHistogram(_label, values, values_count, values_offset, overlay_text, scale_min,   scale_max, graph_size, stride) end;
+class procedure ImGui.ProgressBar(fraction: single; size_arg: PImVec2; overlay: PChar);
+    begin igProgressBar(fraction, size_arg, overlay) end;
+
+class function ImGui.BeginCombo(const _label, preview_value: string; flags: ImGuiComboFlags): bool;
+    begin result := igBeginCombo(pchar(_label), pchar(preview_value), flags); end;
+class procedure ImGui.EndCombo;
+    begin igEndCombo end;
+class function ImGui.Combo(_label: string; current_item: Plongint; items: PPchar; items_count: longint; height_in_items: longint): bool;
+    begin result := igCombo(pchar(_label), current_item, items, items_count, height_in_items) end;
+class function ImGui.Combo2(_label: string; current_item: Plongint; items_separated_by_zeros: PChar; height_in_items: longint): bool;
+    begin result := igCombo2(pchar(_label), current_item, items_separated_by_zeros, height_in_items) end;
 
 class function ImGui.ColorButton(desc_id: PChar; col: ImVec4; flags: ImGuiColorEditFlags; size: ImVec2): bool;
     begin result := igColorButton(desc_id, col, flags, size) end;
@@ -1727,15 +1867,6 @@ class function ImGui.ColorPicker4(_label: PChar; col: TCol4; flags: ImGuiColorEd
     begin result := igColorPicker4(_label, col, flags) end;
 class procedure ImGui.SetColorEditOptions(flags: ImGuiColorEditFlags);
     begin igSetColorEditOptions(flags) end;
-
-class procedure ImGui.PlotLines(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single; scale_max: single; graph_size: ImVec2; stride: longint);
-    begin igPlotLines(_label, values, values_count, values_offset, overlay_text, scale_min, scale_max, graph_size, stride) end;
-
-class procedure ImGui.PlotHistogram(_label: PChar; values: Psingle; values_count: longint; values_offset: longint; overlay_text: PChar; scale_min: single;   scale_max: single; graph_size: ImVec2; stride: longint);
-    begin igPlotHistogram(_label, values, values_count, values_offset, overlay_text, scale_min,   scale_max, graph_size, stride) end;
-
-class procedure ImGui.ProgressBar(fraction: single; size_arg: PImVec2; overlay: PChar);
-    begin igProgressBar(fraction, size_arg, overlay) end;
 
 { Widgets: Sliders (tip: ctrl+click on a slider to input text) }
 class function ImGui.SliderFloat(_label: PChar; v: Psingle; v_min: single; v_max: single; display_format: PChar; power: single): bool;
@@ -1772,7 +1903,7 @@ class function ImGui.DragFloat3(_label: PChar; v: TFloat3; v_speed: single; v_mi
     begin result := igDragFloat3(_label, v, v_speed, v_min, v_max, display_format, power) end;
 class function ImGui.DragFloat4(_label: PChar; v: TFloat4; v_speed: single; v_min: single; v_max: single; display_format: PChar; power: single): bool;
     begin result := igDragFloat4(_label, v, v_speed, v_min, v_max, display_format, power) end;
-class function ImGui.DragFloatRange2(_label: PChar; v_current_min: Psingle; v_current_max: Psingle; v_speed: single; v_min: single; v_max: single;   display_format: PChar; display_format_max: PChar; power: single): bool;
+class function ImGui.DragFloatRange2(_label: PChar; v_current_min: Psingle; v_current_max: Psingle; v_speed: single; v_min: single; v_max: single; display_format: PChar; display_format_max: PChar; power: single): bool;
     begin result := igDragFloatRange2(_label, v_current_min, v_current_max, v_speed, v_min, v_max,   display_format, display_format_max, power) end;
 { If v_max >= v_max we have no bound }
 class function ImGui.DragInt(_label: PChar; v: Plongint; v_speed: single; v_min: longint; v_max: longint; display_format: PChar): bool;
@@ -1783,14 +1914,14 @@ class function ImGui.DragInt3(_label: PChar; v: TLongInt3; v_speed: single; v_mi
     begin result := igDragInt3(_label, v, v_speed, v_min, v_max, display_format) end;
 class function ImGui.DragInt4(_label: PChar; v: TLongInt4; v_speed: single; v_min: longint; v_max: longint; display_format: PChar): bool;
     begin result := igDragInt4(_label, v, v_speed, v_min, v_max, display_format) end;
-class function ImGui.DragIntRange2(_label: PChar; v_current_min: Plongint; v_current_max: Plongint; v_speed: single; v_min: longint; v_max: longint;   display_format: PChar; display_format_max: PChar): bool;
+class function ImGui.DragIntRange2(_label: PChar; v_current_min: Plongint; v_current_max: Plongint; v_speed: single; v_min: longint; v_max: longint; display_format: PChar; display_format_max: PChar): bool;
     begin result := igDragIntRange2(_label, v_current_min, v_current_max, v_speed, v_min, v_max,   display_format, display_format_max) end;
 
 { Widgets: Input }
-class function ImGui.InputText(_label: PChar; buf: PChar; buf_size: size_t; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback;   user_data: pointer): bool;
-    begin result := igInputText(_label, buf, buf_size, flags, callback,   user_data) end;
-class function ImGui.InputTextMultiline(_label: PChar; buf: PChar; buf_size: size_t; size: ImVec2; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback;   user_data: pointer): bool;
-    begin result := igInputTextMultiline(_label, buf, buf_size, size, flags, callback,   user_data) end;
+class function ImGui.InputText(_label: PChar; buf: PChar; buf_size: size_t; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback; user_data: pointer): bool;
+    begin result := igInputText(_label, buf, buf_size, flags, callback, user_data) end;
+class function ImGui.InputTextMultiline(_label: PChar; buf: PChar; buf_size: size_t; size: ImVec2; flags: ImGuiInputTextFlags; callback: ImGuiTextEditCallback; user_data: pointer): bool;
+    begin result := igInputTextMultiline(_label, buf, buf_size, size, flags, callback, user_data) end;
 class function ImGui.InputFloat(_label: PChar; v: Psingle; step: single; step_fast: single; decimal_precision: longint; extra_flags: ImGuiInputTextFlags): bool;
     begin result := igInputFloat(_label, v, step, step_fast, decimal_precision, extra_flags) end;
 class function ImGui.InputFloat2(_label: PChar; v: TFloat2; decimal_precision: longint; extra_flags: ImGuiInputTextFlags): bool;
@@ -1943,11 +2074,21 @@ class procedure ImGui.PushClipRect(clip_rect_min: ImVec2; clip_rect_max: ImVec2;
 class procedure ImGui.PopClipRect;
     begin igPopClipRect end;
 
+class procedure ImGui.StyleColorsClassic(dst: PImGuiStyle);
+    begin igStyleColorsClassic(dst) end;
+class procedure ImGui.StyleColorsDark(dst: PImGuiStyle);
+    begin igStyleColorsDark(dst) end;
+class procedure ImGui.StyleColorsLight(dst: PImGuiStyle);
+    begin igStyleColorsLight(dst) end;
+
+class procedure ImGui.SetItemDefaultFocus;
+    begin igSetItemDefaultFocus end;
+class procedure ImGui.SetKeyboardFocusHere(offset: integer);
+    begin igSetKeyboardFocusHere(offset) end;
+
 { Utilities }
-class function ImGui.IsItemHovered: bool;
-    begin result := igIsItemHovered end;
-class function ImGui.IsItemRectHovered: bool;
-    begin result := igIsItemRectHovered end;
+class function ImGui.IsItemHovered(flags: ImGuiHoveredFlags): bool;
+    begin result := igIsItemHovered(flags) end;
 class function ImGui.IsItemActive: bool;
     begin result := igIsItemActive end;
 class function ImGui.IsItemClicked(mouse_button: longint): bool;
@@ -1966,16 +2107,14 @@ class procedure ImGui.GetItemRectSize(pOut: PImVec2);
     begin igGetItemRectSize(pOut) end;
 class procedure ImGui.SetItemAllowOverlap;
     begin igSetItemAllowOverlap end;
-class function ImGui.IsWindowHovered: bool;
-    begin result := igIsWindowHovered end;
-class function ImGui.IsWindowFocused: bool;
-    begin result := igIsWindowFocused end;
-class function ImGui.IsRootWindowFocused: bool;
-    begin result := igIsRootWindowFocused end;
-class function ImGui.IsRootWindowOrAnyChildFocused: bool;
-    begin result := igIsRootWindowOrAnyChildFocused end;
-class function ImGui.IsRootWindowOrAnyChildHovered: bool;
-    begin result := igIsRootWindowOrAnyChildHovered end;
+class function ImGui.IsWindowFocused(flags: ImGuiHoveredFlags): bool;
+    begin result := igIsWindowFocused(flags) end;
+class function ImGui.IsWindowHovered(flags: ImGuiHoveredFlags): bool;
+    begin result := igIsWindowHovered(flags) end;
+class function ImGui.IsAnyWindowFocused: bool;
+    begin result := igIsAnyWindowFocused end;
+class function ImGui.IsAnyWindowHovered: bool;
+    begin result := igIsAnyWindowHovered end;
 class function ImGui.IsRectVisible(const item_size: ImVec2): bool;
     begin result := igIsRectVisible(item_size) end;
 class function ImGui.IsRectVisible(const rect_min, rect_max: PImVec2): bool;
@@ -2023,10 +2162,6 @@ class function ImGui.IsMouseDoubleClicked(_button: longint): bool;
     begin result := igIsMouseDoubleClicked(_button) end;
 class function ImGui.IsMouseReleased(_button: longint): bool;
     begin result := igIsMouseReleased(_button) end;
-class function ImGui.IsWindowRectHovered: bool;
-    begin result := igIsWindowRectHovered; end;
-class function ImGui.IsAnyWindowHovered: bool;
-    begin result := igIsAnyWindowHovered; end;
 class function ImGui.IsMouseHoveringRect(r_min: ImVec2; r_max: ImVec2; clip: bool): bool;
     begin result := igIsMouseHoveringRect(r_min, r_max, clip) end;
 class function ImGui.IsMouseDragging(_button: longint; lock_threshold: single): bool;
