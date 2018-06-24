@@ -386,6 +386,9 @@ begin
           ImGui.Checkbox('wireframe', @g_rep.wireframe);
           ImGui.SameLine();
           ImGui.Checkbox('clear on swap', @ui.buffer_clears_on_swap);
+          ImGui.SameLine();
+          if ImGui.Button('re-upload gui texture') then
+              ImGui_ImplSdlGlide2x_ReuploadFontTexture;
           ImGui.SliderInt('sleep', @ui.sleep_ms, 0, 100);
           for i := Low(TraceFunc) to High(TraceFunc) do begin
               if glFuncCallStats[i] > 0 then begin
