@@ -103,6 +103,7 @@ const
   //does something else besides 3dfx's opengl generate these large coords?
   VERTEX_SNAP_COMPARE = 4096.0;
   VERTEX_SNAP = single( 3 << 18 );  //see gdraw
+  FORCE_RES_2X = false;
 
 { ================================================================================================ }
 //mmid translation - just use a big enough buffer, nothing smart
@@ -139,6 +140,10 @@ begin
   if v.x > VERTEX_SNAP_COMPARE then begin
       v.x -= VERTEX_SNAP;
       v.y -= VERTEX_SNAP;
+  end;
+  if FORCE_RES_2X then begin
+      v.x *= 2;
+      v.y *= 2;
   end;
 end;
 
@@ -186,6 +191,10 @@ begin
 
   if g_rep.window_opened and g_rep.force_single_window then
       exit;
+
+  //not really a 2x, but ok for debugging lower res traces
+  if FORCE_RES_2X then
+      resolution := $d;
 
   Assert(resolution <> GR_RESOLUTION_NONE);
   Width  := ResolutionList[resolution][0];
@@ -820,6 +829,10 @@ begin
   Load(miny, sizeof(TFxU32));
   Load(maxx, sizeof(TFxU32));
   Load(maxy, sizeof(TFxU32));
+
+  if FORCE_RES_2X then
+      exit;
+
   grClipWindow(minx, miny, maxx, maxy);
 end;
 
