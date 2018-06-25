@@ -46,6 +46,7 @@ Tested games
 * Unreal Tournament - ok, can overwrite GUI
 * Star Wars: Rogue Squadron 3D - ok, but the menu is missing (needs LFB write tracking)
 * Homeworld (GoG edition) - ok, but needs 3Dfx OpenGl Driver version Beta 2.0/2.1, asteroids have bad culling mode (driver bug?)
+* GLQuake - ok, but needs 3Dfx OpenGL Driver + dgVoodoo to run (couldn't get minigl working with glide wrappers)
 
 
 Thanks
