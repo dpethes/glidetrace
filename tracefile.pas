@@ -11,7 +11,7 @@ uses
 
 const
   MEM_BUFFER_SIZE = 1 << 20;
-  LOAD_BUFFER_SIZE = 10 << 20;
+  LOAD_BUFFER_SIZE = 1 << 24;  //quake 2 needs at least 16MB for initial texture upload
   CMD_GUARD: longword = $deadbeef;
 
 type
@@ -40,13 +40,13 @@ var
       buffer: TMemoryStream;
       load_buffer: pbyte;
       file_pos: int64;
+      frame_num: integer;
   end;
 
 procedure OpenTraceFileWrite(s: string);
 procedure CloseTraceFileWrite;
 function OpenTraceFileRead(s: string): boolean;
 procedure CloseTraceFileRead;
-procedure SeekToFrame(frame: integer);  //backward only seek
 procedure TraceFPUExceptionMask();
 procedure Trace(fn: TraceFunc);
 procedure Trace(s: string);
@@ -55,6 +55,9 @@ procedure Store(const buf; const size: integer);
 
 procedure Load(out buf; const size: integer);
 function LoadFunc: TraceFunc;
+procedure LoadPrevFrame;
+procedure LoadNewFrame;
+procedure RewindFrame;
 function HaveMore: boolean;
 
 procedure StoreGuard; inline;
@@ -352,11 +355,13 @@ begin
           result := true;
   end;
 
-  FramingRead;
   if not result then begin
       CloseTraceFileRead;
       exit;
   end;
+
+  g_traceread.frame_num := 0;
+  FramingRead;
 
   g_tr.frame_offsets := TFrameOffsetList.Create;
   g_tr.frame_offsets.Reserve(1 << 10);
@@ -370,22 +375,34 @@ begin
   Close(g_traceread.file_bin);
 end;
 
-procedure SeekToFrame(frame: integer);
+procedure LoadPrevFrame;
 var
-  fpos, current_fpos, how_much: int64;
+  frame: integer;
+  fpos: int64;
 begin
-  if g_tr.frame_offsets.Count <= frame then
-      frame := g_tr.frame_offsets.Count - 1;
+  g_traceread.frame_num -= 1;
+  frame := g_traceread.frame_num - 1;
   if frame < 0 then
       frame := 0;
   fpos := g_tr.frame_offsets[frame];
-  current_fpos := g_traceread.file_pos + g_traceread.buffer.Position;
-  how_much := current_fpos - fpos;
-  assert(how_much >= 0, 'bad seek');
-
   Seek(g_traceread.file_bin, fpos);
   FramingRead;
-  //todo if the frame is the same, just rewind buffer
+end;
+
+procedure LoadNewFrame;
+var
+  fpos: int64;
+begin
+  fpos := FilePos(g_traceread.file_bin);
+  if (g_tr.frame_offsets.Count = 0) or (g_tr.frame_offsets[g_tr.frame_offsets.Count-1] < fpos) then
+      g_tr.frame_offsets.Add(fpos);
+  FramingRead;
+  g_traceread.frame_num += 1;
+end;
+
+procedure RewindFrame;
+begin
+  g_traceread.buffer.Position := 0;
 end;
 
 function HaveMore: boolean;
@@ -426,7 +443,6 @@ end;
 function LoadFunc: TraceFunc;
 var
   cmd: byte;
-  fpos: int64;
 begin
   Load(cmd, 1);
   LoadGuard;
@@ -435,13 +451,6 @@ begin
   end else begin
       writeln('bad command');  //ouch, cannot continue
       halt;
-  end;
-
-  if result = grBufferSwap then begin
-      fpos := FilePos(g_traceread.file_bin);
-      if (g_tr.frame_offsets.Count = 0) or (g_tr.frame_offsets[g_tr.frame_offsets.Count-1] < fpos) then
-          g_tr.frame_offsets.Add(fpos);
-      FramingRead;
   end;
 end;
 

@@ -287,6 +287,7 @@ var
   frames: integer;
 
   done: boolean = false;
+  load_next_frame: boolean;
   ui: record
       sleep_ms: integer;
       play: boolean;
@@ -353,7 +354,6 @@ begin
   while not done do begin
       glFunc := LoadFunc;
       InterpretFunc(glFunc);
-      done := not HaveMore;
 
       if glFunc in DrawCalls then
           draw_call.count += 1;
@@ -363,8 +363,8 @@ begin
          glFuncCallStats[glFunc] += 1;
 
       //if the playback is stopped, we have to issue bufferswap ourselves
-      if not ui.play and (draw_call.count >= draw_call.limit) then
-          glFunc := grBufferSwap;
+      //if not ui.play and (draw_call.count >= draw_call.limit) then
+      //    glFunc := grBufferSwap;
 
       //run event handling and UI drawing
       if glFunc = grBufferSwap then
@@ -443,16 +443,30 @@ begin
               ImGui_ImplSdlGlide2x_ProcessEvent(@ev);
           end;
 
-          if ui.play then begin
-              frames += 1;
-          end else begin
-              if ui.step_backward then
-                  frames -= 1;
-              if not ui.step_forward then
-                  SeekToFrame(frames)
-              else
-                  frames += 1;
+          if not done then begin
+              load_next_frame := false;
+              if ui.play then begin
+                  load_next_frame := true;
+              end else begin
+                  if ui.step_backward then begin
+                      LoadPrevFrame;
+                      frames -= 1;
+                  end
+                  else if ui.step_forward then begin
+                      load_next_frame := true;
+                  end
+                  else
+                      RewindFrame;
+              end;
+              if load_next_frame then begin
+                  done := not HaveMore;
+                  if not done then begin
+                      LoadNewFrame;
+                      frames += 1;
+                  end;
+              end;
           end;
+
           if draw_call.max < draw_call.count then
               draw_call.max := draw_call.count;
           draw_call.count := 0;
