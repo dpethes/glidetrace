@@ -37,9 +37,9 @@ var
 
   g_traceread: record
       file_bin: file;
+      file_size: int64;
       buffer: TMemoryStream;
       load_buffer: pbyte;
-      file_pos: int64;
       frame_num: integer;
   end;
 
@@ -136,8 +136,6 @@ begin
   decoder.Free;
 end;
 
-
-
 procedure FramingWrite();
 var
   encoded_size: integer;
@@ -177,17 +175,11 @@ var
   frame_size: integer;
   crc, stored_crc: LongWord;
 begin
-
-  g_traceread.file_pos := FilePos(g_traceread.file_bin);
-  size_avail := FileSize(g_traceread.file_bin) - g_traceread.file_pos;
-  if size_avail < 4 then
-      exit;
-
   blockread(g_traceread.file_bin, frame_size, 4);
   blockread(g_traceread.file_bin, stored_crc, 4);
   blockread(g_traceread.file_bin, g_traceread.load_buffer^, frame_size);
 
-  g_traceread.buffer.Position := 0;
+  g_traceread.buffer.Clear;  //if we just reset the position then buffer.Size can be invalid
   DecodeBytesToStream(g_traceread.load_buffer, frame_size, g_traceread.buffer);
 
 
@@ -338,11 +330,12 @@ begin
       exit;
   Assign(g_traceread.file_bin, s);
   Reset(g_traceread.file_bin, 1);
+  g_traceread.file_size := FileSize(g_traceread.file_bin);
 
   g_traceread.buffer := TMemoryStream.Create;
   g_traceread.load_buffer := Getmem(LOAD_BUFFER_SIZE);
 
-  if FileSize(g_traceread.file_bin) <= HEADER_SIZE then begin
+  if g_traceread.file_size <= HEADER_SIZE then begin
       writeln('invalid or empty trace');
   end else begin
       blockread(g_traceread.file_bin, g_traceread.load_buffer^, HEADER_SIZE);
@@ -394,6 +387,9 @@ var
   fpos: int64;
 begin
   fpos := FilePos(g_traceread.file_bin);
+  Assert(g_traceread.file_size - fpos > 8);
+  //TODO: could handle end of file better - return ok/done for example
+
   if (g_tr.frame_offsets.Count = 0) or (g_tr.frame_offsets[g_tr.frame_offsets.Count-1] < fpos) then
       g_tr.frame_offsets.Add(fpos);
   FramingRead;
@@ -407,26 +403,13 @@ end;
 
 function HaveMore: boolean;
 begin
-  result := g_traceread.buffer.Position < g_traceread.buffer.Size;
-  if not result then
-      result := (FileSize(g_traceread.file_bin) - FilePos(g_traceread.file_bin)) > 0;
+  result := (g_traceread.file_size - FilePos(g_traceread.file_bin)) > 0;
 end;
 
 procedure Load(out buf; const size: integer);
-var
-  left_bytes: Int64;
-  partial_size: integer;
 begin
-  left_bytes := g_traceread.buffer.Size - g_traceread.buffer.Position;
-  if size > left_bytes then begin
-      partial_size := size - left_bytes;
-      if left_bytes > 0 then
-          g_traceread.buffer.Read(buf, left_bytes);
-      FramingRead;
-      g_traceread.buffer.Read((pbyte(@buf) + left_bytes)^, partial_size);
-  end else begin
-      g_traceread.buffer.Read(buf, size);
-  end;
+  Assert(g_traceread.buffer.Size - g_traceread.buffer.Position >= 0);
+  g_traceread.buffer.Read(buf, size);
 end;
 
 procedure LoadGuard; inline;

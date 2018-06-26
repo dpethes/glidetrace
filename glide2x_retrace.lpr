@@ -475,6 +475,7 @@ begin
       end;
   end;
   ImGui_ImplSdlGlide2x_Shutdown();
+  CloseTraceFileRead;
 
   //close glide
   Sleep(250);
@@ -487,5 +488,4 @@ begin
 
   freemem(g_rep.mmid_translation_table);
   freemem(g_rep.scratchpad);
-  CloseTraceFileRead;
 end.
