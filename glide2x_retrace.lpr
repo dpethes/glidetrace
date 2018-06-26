@@ -106,7 +106,6 @@ begin
       grSstWinOpen: begin
           grSstWinOpen_do(disp);
           ImGui_ImplSdlGlide2x_NewFrame();
-          ImGui.PushStyleVar(ord(ImGuiStyleVar_WindowRounding), 0);
           Imgui.GetIO()^.MouseDrawCursor := true;  //useful in fullscreen mode
       end;
       grSstWinClose: grSstWinClose_do(disp);
@@ -329,6 +328,9 @@ begin
   //open SDL window
   disp := TDisplay.Create;
   ImGui_ImplSdlGlide2x_Init();
+  ImGui.StyleColorsDark(ImGui.GetStyle());
+  ImGui.GetStyle()^.WindowRounding := 0;
+  ImGui.GetStyle()^.Colors[ImGuiCol_WindowBg] := ImVec4Init(0.05, 0.05, 0.05, 0.4);
 
   //see no evil
   MaskFPUExceptions;
