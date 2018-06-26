@@ -366,6 +366,10 @@ begin
       //if not ui.play and (draw_call.count >= draw_call.limit) then
       //    glFunc := grBufferSwap;
 
+      //some games can call shutdown and then init glide again, so stop only if there's no more data
+      if glFunc = grGlideShutdown then
+          done := not HaveMore;
+
       //run event handling and UI drawing
       if glFunc = grBufferSwap then
       begin
