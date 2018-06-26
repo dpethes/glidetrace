@@ -292,6 +292,7 @@ var
       sleep_ms: integer;
       play: boolean;
       buffer_clears_on_swap: boolean;
+      refresh_texture: boolean;
       frame_analysis: boolean;
       step_forward,
       step_backward: boolean;
@@ -351,6 +352,7 @@ begin
       play := true;
       sleep_ms := 16;
       buffer_clears_on_swap := false;
+      refresh_texture := false;
       frame_analysis := false;
   end;
 
@@ -395,8 +397,7 @@ begin
           ImGui.SameLine();
           ImGui.Checkbox('clear on swap', @ui.buffer_clears_on_swap);
           ImGui.SameLine();
-          if ImGui.Button('re-upload gui texture') then
-              ImGui_ImplSdlGlide2x_ReuploadFontTexture;
+          ImGui.Checkbox('force ui texture', @ui.refresh_texture);
           ImGui.SliderInt('sleep', @ui.sleep_ms, 0, 100);
           for i := Low(TraceFunc) to High(TraceFunc) do begin
               if glFuncCallStats[i] > 0 then begin
@@ -419,6 +420,11 @@ begin
                          BoolToStr(g_rep.active_tmus[GR_TMU2], true)]);
               ImGui.End_;
           end;
+
+          //if we play back the trace at the same TMU memory configuration as it was captured on, it can overwrite our texture
+          //(we are ok if more TMU memory is available, because our texture uses top of the memory space)
+          if ui.refresh_texture then
+              ImGui_ImplSdlGlide2x_ReuploadFontTexture;
           Imgui.Render();
 
           glide2x.grBufferSwap(1);
