@@ -145,7 +145,7 @@ var
 begin
   crc := crc32(0, PByte(g_tracewrite.buffer.Memory), g_tracewrite.buffer.Position);
 
-  g_tracewrite.compressed_buffer.Clear;
+  g_tracewrite.compressed_buffer.Position := 0;
   encoded_size := EncodeBytesToStream(
                     PByte(g_tracewrite.buffer.Memory),
                     g_tracewrite.buffer.Position,
@@ -167,7 +167,7 @@ begin
   BlockWrite(g_tracewrite.file_bin, PByte(g_tracewrite.buffer.Memory)^, encoded_size);
   }
 
-  g_tracewrite.buffer.Clear;
+  g_tracewrite.buffer.Position := 0;
 end;
 
 
@@ -187,7 +187,7 @@ begin
   blockread(g_traceread.file_bin, stored_crc, 4);
   blockread(g_traceread.file_bin, g_traceread.load_buffer^, frame_size);
 
-  g_traceread.buffer.Clear;
+  g_traceread.buffer.Position := 0;
   DecodeBytesToStream(g_traceread.load_buffer, frame_size, g_traceread.buffer);
 
 
