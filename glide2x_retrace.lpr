@@ -75,47 +75,48 @@ begin
   case glFunc of
       { System
       }
-      grGlideInit: ;        //skip, already initialized
-      grGlideShutdown: ;    //skip, we do that ourselves
-      grGlideGetVersion: ;  //skip or display result
-
+      grGlideInit:     writeln('call: grGlideInit');     //skip, already initialized
+      grGlideShutdown: writeln('call: grGlideShutdown'); //skip, we do that ourselves
+      grGlideGetVersion: ;  //skip
       //todo these two should be paired: get should store state until set is called; unless pairing is broken
       grGlideGetState: ;
       //grGlideSetState: grGlideSetState_do();
 
-      grSstIsBusy: ;        //skip
-      grSstIdle: glide2x.grSstIdle();  //this could probably be skipped as well
-      grSstStatus: ;        //skip
-      grSstVRetraceOn: ;    //skip
-      grSstVideoLine: ;     //skip
-
-      grSstQueryBoards: ;   //skip or display result
-      grSstQueryHardware: ; //skip or display result
-      grSstControl: ;       //skip completely?
       grSstSelect: ;        //already selected 0 on init. Don't assume multiple adapters will be used
-      grSstOrigin: grSstOrigin_do();
-      grSstScreenHeight: ;  //skip
-      grSstScreenWidth: ;   //skip
+      grSstOrigin:          grSstOrigin_do();
+      grSstIdle:            glide2x.grSstIdle();  //forces openglide to flush buffers, otherwise could be skipped on wrappers
+      grSstControl: ;       //skip completely? also known as grSstControlMode
+      grSstIsBusy,
+      grSstQueryBoards,
+      grSstQueryHardware,
+      grSstScreenHeight,
+      grSstScreenWidth,
+      grSstStatus,
+      grSstVideoLine,
+      grSstVRetraceOn: ;    //skip
 
       grErrorSetCallback: ; //wrappers most likely never return anything; might be useful on real HW though
 
       { Windows
         If trace changes resolution and SDL window stays the same, dgVoodoo and nGlide can
         resize the window; openglide can't
+        Probably recreate the window if single window isn't forced
       }
       grSstWinOpen: begin
           grSstWinOpen_do(disp);
           ImGui_ImplSdlGlide2x_NewFrame();
           Imgui.GetIO()^.MouseDrawCursor := true;  //useful in fullscreen mode
       end;
-      grSstWinClose: grSstWinClose_do(disp);
+      grSstWinClose: begin
+          grSstWinClose_do(disp);
+      end;
 
       { Buffers
       }
-      grBufferClear: grBufferClear_do();
-      grBufferNumPending: ; //skip
-      grBufferSwap: ;       //buffer swaps are handled in the interpreter loop
-      grRenderBuffer: grRenderBuffer_do();
+      grBufferClear:          grBufferClear_do();
+      grBufferSwap: ;         //buffer swaps are handled in the interpreter loop
+      grRenderBuffer:         grRenderBuffer_do();
+      grBufferNumPending: ;   //skip
 
       { LFB
         - writes go through a pointer, so exact modifications aren't traceable through API
@@ -128,90 +129,90 @@ begin
 
       { Drawing
       }
-      grAADrawPoint: grAADrawPoint_do();
-      grAADrawLine: grAADrawLine_do();
-      grAADrawTriangle: grAADrawTriangle_do();
-      grDrawPoint: grDrawPoint_do();
-      grDrawLine: grDrawLine_do();
-      grDrawTriangle: grDrawTriangle_do();
+      grAADrawPoint:          grAADrawPoint_do();
+      grAADrawLine:           grAADrawLine_do();
+      grAADrawTriangle:       grAADrawTriangle_do();
+      grDrawPoint:            grDrawPoint_do();
+      grDrawLine:             grDrawLine_do();
+      grDrawTriangle:         grDrawTriangle_do();
       guDrawTriangleWithClip: guDrawTriangleWithClip_do();
       //one batch, two batch
-      grDrawPlanarPolygon: grDrawPlanarPolygon_do();
-      grDrawPlanarPolygonVertexList: grDrawPlanarPolygonVertexList_do();
-      grDrawPolygon: grDrawPolygon_do();
-      grDrawPolygonVertexList: grDrawPolygonVertexList_do();
+      grDrawPlanarPolygon:             grDrawPlanarPolygon_do();
+      grDrawPlanarPolygonVertexList:   grDrawPlanarPolygonVertexList_do();
+      grDrawPolygon:                   grDrawPolygon_do();
+      grDrawPolygonVertexList:         grDrawPolygonVertexList_do();
 
       { Textures
       }
-      grTexCalcMemRequired: ;  //skip
-      grTexMaxAddress: ;       //skip
-      grTexMinAddress: ;       //skip
-      grTexClampMode: grTexClampMode_do;
-      grTexCombine: grTexCombine_do;
+      grTexClampMode:         grTexClampMode_do;
+      grTexCombine:           grTexCombine_do;
       guTexCombineFunction,
-      grTexCombineFunction: guTexCombineFunction_do;  //they're the same
-      grTexDownloadMipMap: grTexDownloadMipMap_do;
-      grTexDownloadMipMapLevel: grTexDownloadMipMapLevel_do;
+      grTexCombineFunction:   guTexCombineFunction_do;  //they're the same
+      grTexDownloadMipMap:             grTexDownloadMipMap_do;
+      grTexDownloadMipMapLevel:        grTexDownloadMipMapLevel_do;
       grTexDownloadMipMapLevelPartial: grTexDownloadMipMapLevelPartial_do;
-      grTexDownloadTable: grTexDownloadTable_do;
-      grTexDownloadTablePartial: grTexDownloadTablePartial_do;
-      grTexFilterMode: grTexFilterMode_do;
-      grTexLodBiasValue: grTexLodBiasValue_do;
-      grTexMipMapMode: grTexMipMapMode_do;
-      grTexSource: grTexSource_do;
-      grTexTextureMemRequired: ;  //skip
+      grTexDownloadTable:              grTexDownloadTable_do;
+      grTexDownloadTablePartial:       grTexDownloadTablePartial_do;
+      grTexFilterMode:        grTexFilterMode_do;
+      grTexLodBiasValue:      grTexLodBiasValue_do;
+      grTexMipMapMode:        grTexMipMapMode_do;
+      grTexSource:            grTexSource_do;
+      grTexTextureMemRequired,
+      grTexCalcMemRequired,
+      grTexMaxAddress,
+      grTexMinAddress: ;      //skip
 
       //alloc TGrMipMapId -s and compare them to stored id-s. if they'll differ from run to run, we need remapping
-      guTexAllocateMemory: guTexAllocateMemory_do;
-      guTexChangeAttributes: guTexChangeAttributes_do;
-      guTexDownloadMipMap: guTexDownloadMipMap_do;
-      guTexGetCurrentMipMap: ;  //skip
-      guTexGetMipMapInfo: ;   //skip
+      guTexAllocateMemory:    guTexAllocateMemory_do;
+      guTexChangeAttributes:  guTexChangeAttributes_do;
+      guTexDownloadMipMap:    guTexDownloadMipMap_do;
+      guTexMemReset:          guTexMemReset_do;
+      guTexSource:            guTexSource_do;
+      guTexGetCurrentMipMap,
+      guTexGetMipMapInfo,
       guTexMemQueryAvail: ;   //skip
-      guTexMemReset: guTexMemReset_do;
-      guTexSource: guTexSource_do;
 
       { configuration and special effect maintenance functions
       }
-      grChromakeyMode: grChromakeyMode_do();
-      grChromakeyValue: grChromakeyValue_do();
-      grClipWindow: grClipWindow_do();
+      grChromakeyMode:        grChromakeyMode_do();
+      grChromakeyValue:       grChromakeyValue_do();
+      grClipWindow:           grClipWindow_do();
 
-      grAlphaBlendFunction: grAlphaBlendFunction_do();
-      grAlphaCombine: grAlphaCombine_do();
-      grAlphaTestFunction: grAlphaTestFunction_do();
+      grAlphaBlendFunction:   grAlphaBlendFunction_do();
+      grAlphaCombine:         grAlphaCombine_do();
+      grAlphaTestFunction:    grAlphaTestFunction_do();
       grAlphaTestReferenceValue: grAlphaTestReferenceValue_do();
 
-      grColorCombine: grColorCombine_do();
-      grColorMask: grColorMask_do();
-      grConstantColorValue: grConstantColorValue_do();
-      grCullMode: grCullMode_do();
-      grDepthBiasLevel: grDepthBiasLevel_do();
-      grDepthBufferFunction: grDepthBufferFunction_do();
-      grDepthBufferMode: grDepthBufferMode_do();
-      grDepthMask: grDepthMask_do();
-      grDisableAllEffects: glide2x.grDisableAllEffects();
-      grDitherMode: grDitherMode_do();
+      grColorCombine:         grColorCombine_do();
+      grColorMask:            grColorMask_do();
+      grConstantColorValue:   grConstantColorValue_do();
+      grCullMode:             grCullMode_do();
+      grDepthBiasLevel:       grDepthBiasLevel_do();
+      grDepthBufferFunction:  grDepthBufferFunction_do();
+      grDepthBufferMode:      grDepthBufferMode_do();
+      grDepthMask:            grDepthMask_do();
+      grDisableAllEffects:    glide2x.grDisableAllEffects();
+      grDitherMode:           grDitherMode_do();
 
-      grFogColorValue: grFogColorValue_do();
-      grFogMode: grFogMode_do();
-      grFogTable: grFogTable_do();
+      grFogColorValue:        grFogColorValue_do();
+      grFogMode:              grFogMode_do();
+      grFogTable:             grFogTable_do();
 
       grGammaCorrectionValue: grGammaCorrectionValue_do();
-      grHints: grHints_do();
-      grSplash: ;  //skip
+      grHints:                grHints_do();
+      grSplash: ;             //skip
       grGlideShamelessPlug: ; //skip
 
       { utility functions
       }
-      gu3dfGetInfo: ;  //skip
-      gu3dfLoad: ;     //skip
-      guAlphaSource: guAlphaSource_do();
+      guAlphaSource:          guAlphaSource_do();
       guColorCombineFunction: guColorCombineFunction_do();
-      guFogGenerateExp: ;      //skip
-      guFogGenerateExp2: ;     //skip
-      guFogGenerateLinear: ;   //skip
-      guFogTableIndexToW: ;    //skip
+      gu3dfGetInfo,
+      gu3dfLoad,
+      guFogGenerateExp,
+      guFogGenerateExp2,
+      guFogGenerateLinear,
+      guFogTableIndexToW: ;   //skip
 
       { perf info, only works on real HW }
       grSstPerfStats, grSstResetPerfStats, grTriStats, grResetTriStats: ;  //skip
