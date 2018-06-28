@@ -377,6 +377,7 @@ begin
       begin
           //write(frames, #13);
           Imgui.Text('frame: %d (draws:%d)',[frames, draw_call.count]);
+          ImGui.Text('data size: %d / %d', [g_tr.frame_size_bytes, g_tr.frame_compressed_size_bytes]);
           ImGui.Checkbox('play', @ui.play);
           if not ui.play then begin
               ImGui.SameLine();

@@ -568,6 +568,15 @@ begin
   glide2x.grTexDownloadMipMapLevel(tmu, startAddress, thisLod, largeLod, aspectRatio, format, evenOdd, Data);
 end;
 
+{
+OpenGlide ignores the start-end range and uploads the whole mip level, which is ok only if the game rewrites the original
+texture data which it uploaded before, but doesn't work if it uses a scratch buffer for texture uploads.
+
+Possible fixes:
+- store all texture data, copy partial data into it and then pass to OpenGlide
+- fix OpenGlide
+Other wrappers seem to be ok
+}
 procedure grTexDownloadMipMapLevelPartial_do;
 var
   tmu: TGrChipID;
