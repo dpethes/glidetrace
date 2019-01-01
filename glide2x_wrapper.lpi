@@ -62,7 +62,7 @@
     </RunParams>
     <Units Count="9">
       <Unit0>
-        <Filename Value="glide2x_wrapper.lpr"/>
+        <Filename Value="glide2x_wrapper.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit0>
       <Unit1>

@@ -56,7 +56,7 @@
     </RunParams>
     <Units Count="13">
       <Unit0>
-        <Filename Value="glide2x_retrace.lpr"/>
+        <Filename Value="glide2x_retrace.pas"/>
         <IsPartOfProject Value="True"/>
       </Unit0>
       <Unit1>
