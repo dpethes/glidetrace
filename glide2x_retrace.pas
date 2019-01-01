@@ -78,9 +78,12 @@ begin
       grGlideInit:     writeln('call: grGlideInit');     //skip, already initialized
       grGlideShutdown: writeln('call: grGlideShutdown'); //skip, we do that ourselves
       grGlideGetVersion: ;  //skip
-      //todo these two should be paired: get should store state until set is called; unless pairing is broken
-      grGlideGetState: ;
-      //grGlideSetState: grGlideSetState_do();
+
+      //The state isn't stored in trace - it's private and different for each wrapper/driver.
+      //Instead we keep only the last state returned by grGlideGetState, which is restored by all subsequent grGlideGetState calls.
+      //Assuming the calls will always be paired, it will work fine (unless somebody tries something tricky).
+      grGlideGetState:      grGlideGetState_do();
+      grGlideSetState:      grGlideSetState_do();  //Besides, does anything really use grGlideSetState except 3dfx splash?
 
       grSstSelect: ;        //already selected 0 on init. Don't assume multiple adapters will be used
       grSstOrigin:          grSstOrigin_do();
@@ -322,6 +325,7 @@ begin
   //reserve "plenty" of space - should be enough for one glide call param list
   g_rep.scratchpad := getmem(16 * (1 shl 20));
   g_rep.mmid_translation_table := getmem(MMID_TRANSLATION_TABLE_SIZE);
+  g_rep.last_state := getmem(sizeof(TGrState));
   g_rep.active_tmus[GR_TMU0] := false;
   g_rep.active_tmus[GR_TMU1] := false;
   g_rep.active_tmus[GR_TMU2] := false;
@@ -500,6 +504,7 @@ begin
   disp.Free;
   glide2x.grGlideShutdown;
 
+  freemem(g_rep.last_state);
   freemem(g_rep.mmid_translation_table);
   freemem(g_rep.scratchpad);
 end.

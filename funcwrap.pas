@@ -248,7 +248,6 @@ end;
 procedure grGlideSetState(const state: PGrState); stdcall;
 begin
   Trace(TraceFunc.grGlideSetState);
-  //Store(state^, sizeof(TGrState));
   glide2x.grGlideSetState(state);
 end;
 

@@ -14,6 +14,7 @@ var
   g_rep: record
       scratchpad: pbyte;  //multipurpose scratch buffer
       mmid_translation_table: PGrMipMapId;
+      last_state: PGrState;
 
       //glide state
       hintmask: TFxU32;
@@ -37,6 +38,7 @@ procedure grSstWinClose_do(disp: TDisplay);
 procedure grBufferClear_do;
 procedure grRenderBuffer_do;
 procedure grSstOrigin_do;
+procedure grGlideGetState_do;
 procedure grGlideSetState_do;
 
 procedure grDrawPoint_do;
@@ -244,12 +246,14 @@ begin
   grSstOrigin(origin);
 end;
 
-procedure grGlideSetState_do;
-var
-  state: TGrState;
+procedure grGlideGetState_do;
 begin
-  Load(state, sizeof(TGrState));
-  //glide2x.grGlideSetState(@state); //todo is this safe? got to be careful
+  glide2x.grGlideGetState(g_rep.last_state);
+end;
+
+procedure grGlideSetState_do;
+begin
+  glide2x.grGlideSetState(g_rep.last_state);
 end;
 
 { ================================================================================================ }
