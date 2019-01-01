@@ -319,7 +319,10 @@ begin
   LoadConfig;
 
   //init wrapper
-  InitGlideFromLibrary(glide_dll_path);
+  if not InitGlideFromLibrary(glide_dll_path) then begin
+      writeln('could not load glide!');
+      halt;
+  end;
   PrepareGlide;
 
   //reserve "plenty" of space - should be enough for one glide call param list
@@ -371,6 +374,7 @@ begin
       if not ((glFunc in DrawCalls) and g_rep.frame_draw_call_skip) then
          glFuncCallStats[glFunc] += 1;
 
+      //TODO broken ?
       //if the playback is stopped, we have to issue bufferswap ourselves
       //if not ui.play and (draw_call.count >= draw_call.limit) then
       //    glFunc := grBufferSwap;
@@ -432,11 +436,12 @@ begin
           Imgui.Render();
 
           glide2x.grBufferSwap(1);
+          Sleep(ui.sleep_ms);
 
-          //unreal tournament doesn't clear the buffers - wireframe mode looks weird
+          //some games (UT, Quake) don't clear the color buffer before rendering new frames
+          //wireframe mode breaks in this case, so we need to clear it ourselves
           if ui.buffer_clears_on_swap then
               glide2x.grBufferClear(0,0,0);
-          Sleep(ui.sleep_ms);
 
           //screenshots
           //g_ctx.buffer_swaps += 1;

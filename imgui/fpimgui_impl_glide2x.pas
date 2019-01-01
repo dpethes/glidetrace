@@ -320,6 +320,8 @@ begin
   end;
 
   grGlideSetState(@state);
+  //TODO grSstOrigin isn't restored, so whe should track its value
+  //grSstOrigin(GR_ORIGIN_LOWER_LEFT);
 end;
 
 end.
